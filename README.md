@@ -1,7 +1,3 @@
-这份教程是基于你之前的操作记录（Windows 环境、WhatsApp 配置、Edge 浏览器插件、独立环境测试）整理而成的 **Clawdbot 2026 Windows 完全部署手册**。
-
----
-
 # ? Clawdbot (Windows) 完整部署与使用指南
 
 ## ? 第一部分：核心概念 (必读)
