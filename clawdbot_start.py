@@ -80,7 +80,7 @@ class StatusLight(tk.Canvas):
         self.itemconfig(self.indicator, fill=color)
 
 # ==========================================
-# 4. 日志组件 (已修改：移除横向滚动，改为自适应换行)
+# 4. 日志组件 (已修改：移除横向滚动，改为自适应换行，去除点击聚焦虚线)
 # ==========================================
 class ModernLog(ttk.Frame):
     def __init__(self, parent, **kwargs):
@@ -91,19 +91,18 @@ class ModernLog(ttk.Frame):
         self.v_scroll = ttk.Scrollbar(self, orient="vertical")
         self.v_scroll.pack(side="right", fill="y")
         
-        # 移除水平滚动条定义 (self.h_scroll)
-        
         self.text = tk.Text(self, 
                             yscrollcommand=self.v_scroll.set, 
-                            # xscrollcommand 移除
-                            wrap="word", # 核心修改：改为按单词换行，实现宽度自适应
+                            wrap="word", 
                             font=("Consolas", 10), 
                             padx=10, pady=10, 
-                            borderwidth=0, highlightthickness=0, **kwargs)
+                            borderwidth=0, 
+                            highlightthickness=0, 
+                            takefocus=0,  # 核心修改：禁止文本框获取焦点环
+                            **kwargs)
         self.text.pack(side="left", fill="both", expand=True)
         
         self.v_scroll.config(command=self.text.yview)
-        # 移除 h_scroll 配置
         
         self.text.tag_config('INFO', foreground='')
         self.text.tag_config('ERROR', foreground='#e03131')
@@ -127,7 +126,7 @@ class ModernLog(ttk.Frame):
 class ClawdLauncher:
     def __init__(self, root):
         self.root = root
-        self.root.title("Clawdbot启动器")
+        self.root.title("Clawdbot 启动器")
         self.root.geometry("1200x900") 
         self.root.minsize(1200, 900)
         
@@ -138,7 +137,7 @@ class ClawdLauncher:
             sv_ttk.set_theme("light")
         except: pass
 
-        # 修改点2：设置主窗口图标 (复用 create_tray_image 生成的龙虾图)
+        # 修改点2：设置主窗口图标
         try:
             icon_img = self.create_tray_image()
             self.icon_photo = ImageTk.PhotoImage(icon_img)
@@ -180,7 +179,8 @@ class ClawdLauncher:
         self.bottom_frame = ttk.Frame(root, padding=(25, 0, 25, 25))
         self.bottom_frame.pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True)
 
-        self.notebook = ttk.Notebook(self.bottom_frame)
+        # 核心修改点：Notebook 不获取焦点
+        self.notebook = ttk.Notebook(self.bottom_frame, takefocus=False)
         self.notebook.pack(fill="both", expand=True)
 
         self.tab_gateway_log = ttk.Frame(self.notebook)
