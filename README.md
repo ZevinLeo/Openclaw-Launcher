@@ -1,202 +1,408 @@
-# 🦞 Clawdbot (Windows) 完整部署与使用指南
+# 🦞 Clawdbot 终极实操手册：从零构建本地 AI 枢纽
 
-## 📖 第一部分：核心概念 (必读)
+> **版本 (Version):** v1.0
+---
 
-Clawdbot 的架构与普通软件不同，它分为“大脑”和“手脚”。你之前的 `Paired: 0` 问题正是因为只启动了大脑。
+## 📘 核心目录导航
 
-1. **Gateway (大脑/网关)**
-* **职责**：负责思考（连接 AI 模型）、通讯（WhatsApp/Telegram）、存储记忆。
-* **状态**：必须**始终运行**。如果它关了，你的机器人就离线了。
-
-
-2. **Node (手脚/节点)**
-* **职责**：负责执行（在 Windows 上运行 CMD 命令、控制浏览器、管理文件）。
-* **状态**：必须**运行并连接到 Gateway**。如果它关了，机器人能聊天，但无法操作电脑。
-
-
+- [一、 简介](#intro)
+- [二、 系统要求](#requirements)
+- [三、 安装步骤](#install)
+- [四、 💻 Clawdbot 控制台使用指南](#console-guide)
+- [五、 配置 DeepSeek API 中转](#deepseek-config)
+- [六、 验证和测试](#verify)
+- [七、 常见踩坑点](#pitfalls)
+- [八、 常见问题 FAQ](#faq)
+- [九、 常用命令速查](#commands)
 
 ---
 
-## 🚀 第二部分：安装与初始化
+## <span id="intro">一、 简介</span>
 
-### 1. 安装命令
+Clawdbot 是一个开源的本地 AI 助手枢纽，它允许你将最顶尖的 AI 模型（如 DeepSeek-V3/R1）无缝接入 Telegram、Discord 等 12+ 消息平台，同时确保敏感数据在本地进行初步处理与存储。
 
-在 PowerShell (管理员) 中运行官方脚本：
-
-```powershell
-iwr -useb https://clawd.bot/install.ps1 | iex
-
-```
-
-### 2. 验证安装位置
-
-如果你想知道它装哪了，运行：
-
-```powershell
-Get-Command clawdbot
-
-```
-
-> **终端解读**：通常位于 `C:\Users\用户名\.clawdbot\bin`。如果显示的是 `npm` 路径，说明你电脑里有两个版本，建议卸载 npm 版以避免冲突。
+**核心特点：**
+- **数据主权**：完全开源，所有聊天记录与 Token 凭证均本地化。
+- **全平台支持**：支持 Web 控制面板及多种主流即时通讯工具。
+- **极速中转**：完美适配 DeepSeek API，享受极高性价比的智能体验。
 
 ---
 
-## ⚡ 第三部分：启动流程 (日常操作)
+## <span id="requirements">二、 系统要求</span>
 
-你需要打开 **两个** PowerShell 窗口。
+### 必需条件
 
-### 窗口 A：启动大脑 (Gateway)
-
-运行命令：
-
-```powershell
-clawdbot
-
-```
-
-**终端输出解读：**
-
-```text
-Listening on port 18789
-Telegram: ok (@ZevinnW_bot)
-WhatsApp: linked
-
-```
-
-* `Listening on port 18789`: 网关启动成功，正在等待连接。
-* `WhatsApp: linked`: WhatsApp 已连接，随时可以接收消息。
-* **注意**：此窗口**不能关闭**。
-
-### 窗口 B：启动手脚 (Node)
-
-运行命令（`127.0.0.1` 代表本机）：
-
-```powershell
-clawdbot node run --host 127.0.0.1 --port 18789 --display-name "MyWinPC"
-
-```
-
-**终端输出解读：**
-
-```text
-Attempting to connect to gateway...
-Connected to gateway at ws://127.0.0.1:18789
-
-```
-
-* `Connected`: 成功连接！现在机器人拥有了操作这台电脑的权限。
-* 如果显示 `Paired: 0` 或 `Pending`，请去窗口 A 运行 `clawdbot devices approve <ID>`。
-
----
-
-## 💬 第四部分：WhatsApp 配置 (关键)
-
-针对你使用的“独立小号做机器人，主号做管理员”模式。
-
-### 1. 设置白名单与权限
-
-由于 PowerShell 对引号处理很特殊，**请原封不动复制**以下命令，防止报错 `expected string, received number`：
-
-```powershell
-# 1. 开启配对模式（防止陌生人骚扰）
-clawdbot config set channels.whatsapp.dmPolicy pairing
-
-# 2. 将你的主号加入白名单（替换 +86... 为你的真实号码）
-# 注意单引号和双引号的嵌套结构
-clawdbot config set channels.whatsapp.allowFrom '["+8613900000000"]'
-
-```
-
-### 2. 登录机器人账号
-
-1. 确保 Gateway 正在运行。
-2. 在终端输入：`clawdbot channels login`
-3. **拿出机器人手机（小号）**，打开 WhatsApp -> 设置 -> 已连接设备 -> 扫码。
-
----
-
-## 🌐 第五部分：浏览器控制 (Edge 插件)
-
-让机器人能操作你的 Microsoft Edge。
-
-### 1. 获取插件路径
-
-在终端运行：
-
-```powershell
-clawdbot browser extension install
-
-```
-
-> **终端解读**：它会输出一个路径，例如 `C:\Users\ZevinW\.clawdbot\extension`。复制这个路径。
-
-### 2. 安装到 Edge
-
-1. 打开 Edge 浏览器，地址栏输入：`edge://extensions`
-2. 打开左侧/右侧的开关：**开发人员模式 (Developer mode)**。
-3. 点击按钮：**加载解压缩的扩展 (Load unpacked)**。
-4. 选择第 1 步中生成的文件夹。
-5. 点击工具栏上的 🦞 图标，确保状态为 `Connected`。
-
----
-
-## 🧪 第六部分：高级技巧 (沙盒与服务)
-
-### 1. 临时沙盒环境 (不影响主环境)
-
-如果你想测试新的配置，但不想破坏现有的：
-
-```powershell
-# 1. 创建临时目录
-md D:\ClawdTest\data
-
-# 2. 设置临时环境变量 (仅当前窗口有效)
-$env:CLAWDBOT_DIR = "D:\ClawdTest\data"
-
-# 3. 启动临时网关 (使用不同端口)
-clawdbot --port 18790
-
-```
-
-*关闭此窗口后，一切自动还原。*
-
-### 2. 开机自启 (使用 PM2)
-
-为了不让桌面一直开着两个黑框框：
-
-```powershell
-# 1. 安装 PM2
-npm install -g pm2 pm2-windows-startup
-pm2-startup install
-
-# 2. 启动并保存网关
-pm2 start clawdbot --name gateway
-pm2 save
-
-# 3. 将 Node 安装为后台服务
-clawdbot node install --host 127.0.0.1 --port 18789 --display-name "AutoNode"
-clawdbot node start
-
-```
-
----
-
-## 🔧 第七部分：故障排除 (Troubleshooting)
-
-| 现象 | 原因 | 解决方法 |
+| 项目 | 规格要求 | 核心原因 |
 | --- | --- | --- |
-| **`Paired: 0`** | 虽然设备已批准，但 Node 程序没运行。 | 打开新窗口运行 `clawdbot node run ...`。 |
-| **`AbortError`** | 重启时的正常断连报错。 | 忽略即可，只要随后显示 Listening。 |
-| **配置报错 `received number**` | 电话号码没加引号。 | 使用 `'["+86..."]'` 格式重新配置。 |
-| **WhatsApp 不回复** | 号码未在白名单或格式错误。 | 确保使用 E.164 格式（+国家码）。 |
-| **Web Search 失败** | 缺少 API Key。 | 申请 Brave Search API Key 并配置。 |
+| **操作系统** | Windows / macOS / Linux | 涉及底层文件监控与网络网关映射 |
+| **Node.js** | **22.0.0** 或更高版本 | 利用最新的异步特性实现高效数据流转发 |
+| **包管理器** | pnpm (首选) / npm | 确保依赖项安装的一致性与安全性 |
 
 ---
 
-### 🎉 使用示例
+## <span id="install">三、 安装步骤</span>
 
-现在一切就绪，拿起你的手机（主号），给机器人（小号）发消息：
+### 1. 升级 Node.js 版本
 
-* **测试连接**：`Hello`
-* **测试系统操作**：`检查一下 C 盘剩余空间`
-* **测试浏览器**：`帮我总结一下 Edge 浏览器当前标签页的内容`
+Clawdbot 对运行环境极其敏感，建议通过 **nvm** 确保版本达标：
+
+```bash
+# 安装并激活版本 22
+nvm install 22
+nvm use 22
+nvm alias default 22
+
+# 验证版本
+node --version  # 应显示 v22.x.x
+
+```
+
+### 2. 选择安装方式
+
+根据您的使用习惯选择其中一种路径：
+
+* **方式一：npm 全局安装 (官方推荐)**
+
+```bash
+npm install -g clawdbot
+
+```
+
+* **方式二：一键 Shell 脚本**
+
+```bash
+curl -fsSL [https://clawd.bot/install.sh](https://clawd.bot/install.sh) | bash
+
+```
+
+### 3. 初始化配置 (Onboarding)
+
+安装完成后运行配置向导：
+
+```bash
+clawdbot onboard
+
+```
+
+**配置向导流程：**
+
+#### 步骤 1：安全确认
+
+```text
+◇  Security ───────────────────────────────────────────────────────╮
+│  Clawdbot agents can run commands, read/write files, and act     │
+│  through any tools you enable.                                   │
+│  Please read: [https://docs.clawd.bot/security](https://docs.clawd.bot/security)                    │
+├──────────────────────────────────────────────────────────────────╯
+
+◇  I understand this is powerful and inherently risky. Continue?
+│  Yes
+
+```
+
+#### 步骤 2：选择 AI 后端
+
+由于 DeepSeek 的 API 完全兼容 OpenAI 格式，此处**直接选择 OpenAI** 即可。
+
+```text
+◇  Model/auth provider
+│  OpenAI  ← 直接选择 OpenAI (DeepSeek 完美兼容 OpenAI 协议)
+
+◆  OpenAI auth method
+│  ● API key
+
+```
+
+#### 步骤 3：配置 DeepSeek API Key
+
+**👉 获取 DeepSeek API Key 教程：**
+
+1. 访问 DeepSeek 开放平台：[https://platform.deepseek.com/api_keys](https://platform.deepseek.com/api_keys)
+2. 登录您的账户，点击右上角的 **"创建 API Key"**。
+3. 复制生成的以 `sk-` 开头的密钥。
+
+**回到终端输入凭证：**
+
+```text
+◇  Paste OpenAI API key
+│  sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx  ← 在此处粘贴您刚获取的 DeepSeek Key
+
+◇  Base URL (optional)
+│  [https://api.deepseek.com/v1](https://api.deepseek.com/v1)  ← 务必手动输入此地址 (不要漏掉 /v1)
+
+```
+
+> **提示：** 此时 onboard 向导会生成基础配置，稍后我们需要在第五章中手动优化模型参数。
+
+#### 步骤 4：配置消息平台（可选）
+
+```text
+◇  Channel status ────────────────────────────╮
+│  Telegram: not configured                    │
+│  WhatsApp: not configured                    │
+│  Discord: not configured                     │
+│  ...共支持 12+ 平台                          │
+├─────────────────────────────────────────────╯
+
+◇  Select channel (QuickStart)
+│  Telegram (Bot API)
+
+```
+
+**获取 Telegram Bot Token：**
+
+1. 在 Telegram 中搜索 @BotFather
+2. 发送 `/newbot`
+3. 按提示输入 Bot 名称和用户名
+4. 复制 Bot Token
+
+#### 步骤 5：完成配置
+
+```text
+◇  Telegram: ok (@YourBotName) (1416ms)
+   Agents: main (default)
+   Heartbeat interval: 1h (main)
+
+◇  Control UI ─────────────────────────────────────────────────────╮
+│  Web UI: [http://127.0.0.1:18789/](http://127.0.0.1:18789/)                                 │
+│  Web UI (with token): [http://127.0.0.1:18789/?token=your-token](http://127.0.0.1:18789/?token=your-token)   │
+│  Gateway WS: ws://127.0.0.1:18789                                │
+├──────────────────────────────────────────────────────────────────╯
+
+└  Onboarding complete.
+
+```
+
+#### 步骤 6：配对验证（如使用 Telegram）
+
+去 Telegram 给你的 Bot 发消息，会收到配对码：
+
+```text
+Clawdbot: access not configured.
+
+Your Telegram user id: 1234567890
+Pairing code: ABC12345
+
+Ask the bot owner to approve with:
+clawdbot pairing approve telegram <code>
+
+```
+
+在终端批准配对：
+
+```bash
+clawdbot pairing approve telegram ABC12345
+
+```
+
+---
+
+## <span id="console-guide">四、 💻 Clawdbot 控制台使用指南</span>
+
+### 核心操作区
+
+* **🚀 一键启动 (One-Click Start)**：
+* 自动在后台启动 Gateway 服务。
+* 等待服务就绪后，自动启动 Node 并建立连接。
+* 推荐日常使用此按钮。
+
+
+* **🛑 全部停止 (Stop All)**：
+* 强制结束所有关联进程 (clawdbot.exe, node.exe)，释放系统端口。
+
+
+* **🔍 手动检测 (Manual Check)**：
+* 如果您怀疑状态显示不准，点击此按钮强制刷新。
+
+
+
+### 状态指示灯
+
+* ⚪ **灰色 (Not Running)**：服务未启动。
+* 🟢 **绿色 (Running/Connected)**：服务运行正常，连接成功。
+* 🟡 **黄色 (Connecting...)**：服务启动中或正在配对。
+
+### 设置与托盘
+
+* **最小化到托盘**：勾选后，点击窗口右上角的关闭或最小化按钮，程序将隐藏到任务栏托盘区（右下角小图标），持续守护进程。
+* **双击托盘图标**：重新显示主界面。
+
+---
+
+## <span id="deepseek-config">五、 配置 DeepSeek API 中转</span>
+
+为了获得最佳体验，请手动编辑 `~/.clawdbot/clawdbot.json`，将 `models` 部分替换为以下高级模版：
+
+### 1. 深度配置模版解析
+
+```json
+{
+  "models": {
+    "mode": "merge",
+    "providers": {
+      "openai": {
+        "baseUrl": "[https://api.deepseek.com/v1](https://api.deepseek.com/v1)",
+        "apiKey": "你的DEEPSEEK_API_KEY",
+        "api": "openai-completions",
+        "models": [
+          {
+            "id": "deepseek-chat",
+            "name": "DeepSeek Chat",
+            "reasoning": false,
+            "input": [
+              "text"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 64000,
+            "maxTokens": 8192
+          }
+        ]
+      }
+    }
+  }
+}
+
+```
+
+### 2. 关键字段详细讲解
+
+| 字段 | 含义说明 |
+| --- | --- |
+| **`mode`** | 设置为 `"merge"`，表示将此自定义配置与系统默认配置合并。 |
+| **`api`** | 必须设为 `"openai-completions"`，确保 Clawdbot 使用 OpenAI 标准流式协议。 |
+| **`id`** | 核心标识符，必须与 DeepSeek 官方模型 ID (`deepseek-chat`) 完全一致。 |
+| **`reasoning`** | 是否开启推理模式。V3 设为 `false`，若配置 R1 则设为 `true`。 |
+| **`cost`** | 计费定义。此处设为 `0` 代表仅在本地记录消耗，不影响实际 API 扣费。 |
+| **`contextWindow`** | 上下文窗口大小。DeepSeek 支持较大上下文，此处建议设为 `64000`。 |
+| **`maxTokens`** | 单次回复的最大长度上限。建议设为 `8192` 以获得完整回复。 |
+
+### 3. 重启 Gateway 服务
+
+每次修改配置文件后，必须通过控制台重启或执行：
+
+```bash
+clawdbot gateway restart
+
+```
+
+---
+
+## <span id="verify">六、 验证和测试</span>
+
+### 1. 检查 Gateway 状态
+
+```bash
+clawdbot channels status
+
+```
+
+**正常输出：**
+
+```text
+Gateway reachable.
+- Telegram default: disabled, configured, stopped
+
+```
+
+### 2. 访问 Web UI
+
+打开浏览器访问：
+`http://127.0.0.1:18789/?token=你的token`
+
+**Web UI 功能：**
+
+* 💬 Chat: 直接与 AI 对话 (确认模型显示为 DeepSeek Chat)
+* 📊 Overview: 查看系统状态
+* 🔌 Channels: 管理消息通道
+* ⚙️ Config: 修改配置
+
+### 3. 发送测试消息
+
+1. 输入消息：`你好，你是谁？`
+2. 等待 AI 回复，确认其能识别自己为 DeepSeek 模型，状态显示 **"Health OK"**。
+
+### 4. 查看日志
+
+如果遇到问题，检查日志：
+
+```bash
+# Gateway 主日志
+tail -f ~/.clawdbot/logs/gateway.log
+
+# 详细调试日志
+tail -f /tmp/clawdbot/clawdbot-$(date +%Y-%m-%d).log
+
+```
+
+---
+
+## <span id="pitfalls">七、 常见踩坑点</span>
+
+* **❌ 踩坑 1：环境变量配置无效**
+* **问题原因**：Clawdbot 不支持通过系统环境变量设置端点。
+* **✅ 正确做法**：在 `~/.clawdbot/clawdbot.json` 配置文件中修改。
+
+
+* **❌ 踩坑 2：JSON 语法错误**
+* **错误原因**：手动编辑时漏掉括号或引号。
+* **✅ 正确做法**：请确保 `models` 字段内部的对象嵌套闭合，使用 `jq` 验证。
+
+
+* **❌ 踩坑 3：BaseURL 错误**
+* **错误原因**：DeepSeek 的地址漏掉后缀。
+* **✅ 正确做法**：地址必须带 `/v1`，即 `https://api.deepseek.com/v1`。
+
+
+* **❌ 踩坑 4：Node.js 版本过低**
+* **✅ 解决方案**：使用 nvm 安装 22+ 版本。
+
+
+
+---
+
+## <span id="faq">八、 常见问题 FAQ</span>
+
+* **Q: 点击“一键启动”后，状态灯一直不绿？**
+* **A**: 请检查是否已安装 Node.js 22+ 和 clawdbot 核心。您可以尝试打开 CMD 手动输入 `clawdbot gateway` 看看是否有报错信息。
+
+
+* **Q: 提示模型未找到？**
+* **A**: 请检查 `clawdbot.json` 中模型 `id` 是否正确填写为 `deepseek-chat`。
+
+
+* **Q: 启动时提示 "Port 18789 is already in use"？**
+* **A**: 点击 **“🛑 全部停止”** 按钮即可释放端口。
+
+
+* **Q: Gateway 无法连接？**
+* **A**: 1. 检查端口占用；2. 验证配置文件 JSON 格式；3. 查看错误日志：`tail -f ~/.clawdbot/logs/gateway.err.log`。
+
+
+
+---
+
+## <span id="commands">九、 常用命令速查</span>
+
+```bash
+# 重启网关服务
+clawdbot gateway restart
+
+# 环境深度检查
+clawdbot doctor
+
+# 查看实时详细日志
+tail -f /tmp/clawdbot/clawdbot-$(date +%Y-%m-%d).log
+
+# 获取 Web UI 链接
+clawdbot dashboard --no-open
+
+```
+
+```
+
+```
