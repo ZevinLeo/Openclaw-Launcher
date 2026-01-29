@@ -1,6 +1,6 @@
 # 🦞 Clawdbot 终极实操手册：从零构建本地 AI 枢纽
 
-> **版本 (Version):** v1.1 
+> **版本 (Version):** v2.2 (含 Launcher v2.0 GUI 版)
 > **最后更新:** 2026-01-29
 
 ---
@@ -9,12 +9,13 @@
 
 * [一、 简介](#intro)
 * [二、 系统要求](#requirements)
-* [三、 安装与向导配置 (核心交互流程)](#install)
-* [四、 必做：填入 API Key (含 Qwen 避坑指南)](#apikey-config)
-* [五、 🛠️ 常用命令速查手册](#commands)
-* [六、 ✅ 验证与成功案例展示](#verify)
-* [七、 📂 文件结构与安全建议](#structure)
-* [八、 ❓ 常见问题 FAQ](#faq)
+* [三、 🚀 (推荐) 使用 Clawdbot Launcher](#launcher)
+* [四、 💻 (进阶) 命令行安装与向导配置](#install)
+* [五、 🔑 必做：填入 API Key (含 Qwen 避坑指南)](#apikey-config)
+* [六、 🛠️ 常用命令速查手册](#commands)
+* [七、 ✅ 验证与成功案例展示](#verify)
+* [八、 📂 文件结构与安全建议](#structure)
+* [九、 ❓ 常见问题 FAQ](#faq)
 
 ---
 
@@ -28,10 +29,44 @@ Clawdbot 是一个开源的本地 AI 助手枢纽，它允许你将最顶尖的 
 
 * **Node.js**: **22.0.0** 或更高版本 (强烈推荐使用 `nvm` 管理)
 * **操作系统**: Windows / macOS / Linux
+* **Launcher 依赖**: Python 3.8+ (需安装 `pip install sv-ttk pystray pillow`)
 
 ---
 
-## <span id="install">三、 安装与向导配置 (核心交互流程)</span>
+## <span id="launcher">三、 🚀 (推荐) 使用 Clawdbot Launcher</span>
+
+**🦞 Clawdbot Launcher v2.0 (Modern UI)**
+
+此软件旨在简化 Clawdbot 的部署与管理流程，采用现代化的 Sun Valley UI 设计，彻底告别繁琐的命令行。
+
+> **📸 界面预览**
+
+<div align="center">
+  <img src="./images/launcher-preview.png" width="700" alt="Clawdbot Launcher 界面预览" style="border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); margin: 20px 0;">
+  <p><em>▲ 全新 v2.0 界面：支持状态灯监控、彩色日志与托盘守护</em></p>
+</div>
+
+### 🎉 核心亮点 (Highlights)
+* **🎨 现代化界面**：基于 `sv_ttk` 的清爽亮色主题，操作直观。
+* **🧠 双核驱动**：
+    * **Gateway (大脑)**：自动检测 HTTP 健康状态，智能判断服务是否就绪。
+    * **Node (手脚)**：后台静默启动 Node 进程，并实时监控连接状态。
+* **📝 彩色日志**：内置现代化日志窗口，支持关键词高亮（成功、错误、命令），运行状态一目了然。
+* **🛡️ 托盘守护**：支持“最小化到托盘”，关闭窗口后自动缩入右下角，全天候守护您的 AI 服务。
+* **⚡️ 自动提权**：内置管理员权限请求，自动解决端口占用和防火墙拦截问题。
+
+### 🕹️ 操作指南
+1.  **一键启动**：点击“🚀 一键启动”，软件会自动按顺序拉起 Gateway 和 Node 服务。
+2.  **状态监控**：
+    * **Gateway 灯**：🟢 绿色代表 API 服务已就绪 (HTTP 200 OK)。
+    * **Node 灯**：🟢 绿色代表已成功连接到网关，🟡 黄色代表正在连接中。
+3.  **Web 控制台**：点击“🌐 Web 控制台”可直接在浏览器中打开管理后台。
+
+---
+
+## <span id="install">四、 💻 (进阶) 命令行安装与向导配置</span>
+
+如果您更喜欢通过终端掌控一切，或者需要在无 GUI 环境部署，请参考本章节。
 
 ### 1. 安装工具
 ```bash
@@ -81,7 +116,7 @@ clawdbot onboard
 > **📝 输入提示 (非常重要)：**
 > * **DeepSeek V3**: 输入 `deepseek/deepseek-chat`
 > * **DeepSeek R1**: 输入 `deepseek/deepseek-reasoner`
-> * **阿里云 Qwen**: 建议输入 `qwencn/qwen-vl-plus` (不要用 qwen 开头，原因见第四章)
+> * **阿里云 Qwen**: 建议输入 `qwencn/qwen-vl-plus` (不要用 qwen 开头，原因见第五章)
 > 
 > 
 
@@ -206,9 +241,9 @@ Ctrl+C to stop.
 
 ---
 
-## <span id="apikey-config">四、 必做：填入 API Key</span>
+## <span id="apikey-config">五、 🔑 必做：填入 API Key</span>
 
-**注意：** 步骤 3.2 选择了 `Skip for now`，现在必须手动配置 Key。
+**注意：** 无论使用 Launcher 还是命令行，初次配置都需要手动填入 Key。
 
 ### ⚠️ 阿里云 Qwen (通义千问) 用户特别警告
 
@@ -283,30 +318,28 @@ Ctrl+C to stop.
 ```
 
 3. **重启服务生效**：
-```bash
-clawdbot gateway restart
-
-```
+* **Launcher用户**: 点击界面上的 Restart 按钮。
+* **命令行用户**: 执行 `clawdbot gateway restart`。
 
 
 
 ---
 
-## <span id="commands">五、 🛠️ 常用命令速查手册</span>
+## <span id="commands">六、 🛠️ 常用命令速查手册</span>
 
-### 5.1 Gateway 管理
+### 6.1 Gateway 管理
 
 * `clawdbot channels status` : 查看状态
 * `clawdbot gateway restart` : 重启服务 (改配置后必做)
 * `clawdbot channels status --deep` : 深度连接检查
 
-### 5.2 诊断与日志
+### 6.2 诊断与日志
 
 * `tail -f ~/.clawdbot/logs/gateway.log` : 查看主日志
 * `tail -f /tmp/clawdbot/clawdbot-$(date +%Y-%m-%d).log` : 查看详细 API 日志
 * `clawdbot doctor --fix` : 自动修复问题
 
-### 5.3 界面与更新
+### 6.3 界面与更新
 
 * `clawdbot dashboard` : 打开 Web UI
 * `clawdbot tui` : 打开终端聊天界面
@@ -314,9 +347,8 @@ clawdbot gateway restart
 
 ---
 
-## <span id="verify">六、 ✅ 验证与成功案例展示</span>
+## <span id="verify">七、 ✅ 验证与成功案例展示</span>
 
-> **准备工作：** 请在本文档同级目录下新建 `images` 文件夹，并将你的 WebUI 截图命名为 `webui-success.jpg`，WhatsApp 截图命名为 `whatsapp-success.jpg` 放入其中。
 
 ### 1. 访问 Web UI 确认运行
 
@@ -340,9 +372,9 @@ clawdbot gateway restart
 
 ---
 
-## <span id="structure">七、 📂 文件结构与安全建议</span>
+## <span id="structure">八、 📂 文件结构与安全建议</span>
 
-### 7.1 配置文件位置
+### 8.1 配置文件位置
 
 ```text
 ~/.clawdbot/
@@ -353,14 +385,14 @@ clawdbot gateway restart
 
 ```
 
-### 7.2 安全最佳实践
+### 8.2 安全最佳实践
 
 * **API Key**: 推荐使用 `clawdbot.json` 本地配置，禁止提交到 Git。
 * **访问控制**: Gateway 默认只监听 `localhost`。如需远程控制，请使用 **Tailscale** 连回本地，严禁直接暴露端口到公网。
 
 ---
 
-## <span id="faq">八、 ❓ 常见问题 FAQ</span>
+## <span id="faq">九、 ❓ 常见问题 FAQ</span>
 
 * **Q: 为什么 Qwen 报错 401？**
 * A: 检查配置文件中 provider 名字是否写成了 `qwen`。如果是，请改为 `qwencn`。
@@ -374,5 +406,7 @@ clawdbot gateway restart
 * A: 启动后用白名单手机号发消息，如提示配对，在命令行输入 `clawdbot pairing approve whatsapp <配对码>`。
 
 
+
+```
 
 ```
