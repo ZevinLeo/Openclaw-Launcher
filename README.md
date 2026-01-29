@@ -324,7 +324,7 @@ clawdbot gateway restart
 如果看到如下界面，说明 Clawdbot 网关已成功启动，DeepSeek 和 Qwen 模型加载正常。
 
 <div align="center">
-<img src="./images/webui-success.jpg" width="800" alt="Clawdbot Web UI 成功运行界面" style="border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+<img src="./images/webui-success.png" width="800" alt="Clawdbot Web UI 成功运行界面" style="border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
 <p><em>▲ Clawdbot Web UI 控制台：显示 DeepSeek V3 与 Qwen3-VL-Plus 配置就绪</em></p>
 </div>
 
@@ -334,7 +334,7 @@ clawdbot gateway restart
 如下图所示，机器人能够精准调用 DeepSeek 进行文本回复，并列出当前的配置详情。
 
 <div align="center">
-<img src="./images/whatsapp-success.jpg" width="375" alt="WhatsApp 真机对话截图" style="border-radius: 15px; border: 2px solid #e0e0e0;">
+<img src="./images/whatsapp-success.png" width="375" alt="WhatsApp 真机对话截图" style="border-radius: 15px; border: 2px solid #e0e0e0;">
 <p><em>▲ WhatsApp 实测：成功调用 DeepSeek V3 进行流畅对话</em></p>
 </div>
 
