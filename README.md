@@ -214,7 +214,7 @@ Ctrl+C to stop.
 
 > 如果使用**国内版** API Key，配置文件中的 provider 名字**绝对不能叫 `qwen**`！
 > * **原因**：Clawdbot 会将 `qwen` 强制重定向到国际版接口，导致 `401 Unauthorized`。
-> * **解决**：请自定义名字为 **`qwencn`** 或 `openai`。
+> * **解决**：请自定义名字为 **`qwencn`** 或 `qwenchina`等。
 > 
 > 
 
