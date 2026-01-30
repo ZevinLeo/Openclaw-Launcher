@@ -81,7 +81,7 @@ class StatusLight(tk.Canvas):
         self.itemconfig(self.indicator, fill=color)
 
 # ==========================================
-# 4. 日志组件 (紧凑版)
+# 4. 日志组件 (美化+缓冲)
 # ==========================================
 class ModernLog(ttk.Frame):
     def __init__(self, parent, **kwargs):
@@ -118,13 +118,10 @@ class ModernLog(ttk.Frame):
 
     def insert(self, *args):
         try:
-            # 智能滚动
             was_at_bottom = self.text.yview()[1] == 1.0
-            
             self.text.config(state='normal')
             self.text.insert(*args)
             self.text.config(state='disabled')
-            
             if was_at_bottom:
                 self.text.see(tk.END)
         except: pass
@@ -217,8 +214,12 @@ class UniversalLauncher:
 
         # 设置标题
         title_name = "Clawdbot"
-        if self.cli_cmd and "moltbot" in self.cli_cmd:
-            title_name = "Moltbot-CN"
+        if self.cli_cmd:
+            if "openclaw" in self.cli_cmd:
+                title_name = "OpenClaw"
+            elif "moltbot" in self.cli_cmd:
+                title_name = "Moltbot-CN"
+        
         self.root.title(f"{title_name} 通用启动器")
 
         try: self.setup_tray_icon()
@@ -232,11 +233,15 @@ class UniversalLauncher:
         self.root.protocol("WM_DELETE_WINDOW", self.on_close_click)
 
     # ==========================================
-    #  [核心] JSON 版本检测逻辑
+    #  [核心] 智能命令行与版本检测逻辑
     # ==========================================
     def _detect_cli_command(self):
+        # 1. 尝试读取版本号 (检测多个可能的配置文件路径)
+        # OpenClaw 可能会用 openclaw.json，旧版用 clawdbot.json
         paths_to_check = [
+            "openclaw.json",
             "clawdbot.json",
+            os.path.join(os.path.expanduser("~"), ".openclaw", "openclaw.json"),
             os.path.join(os.path.expanduser("~"), ".clawdbot", "clawdbot.json")
         ]
         
@@ -246,45 +251,40 @@ class UniversalLauncher:
                 found_config = path
                 break
         
+        # 读取版本号 (meta -> lastTouchedVersion)
+        self.version_number = "未知版本"
         if found_config:
             try:
                 self.log(self.txt_system, f"读取配置文件: {found_config}", "DEBUG")
                 with open(found_config, 'r', encoding='utf-8') as f:
                     data = json.load(f)
-                    version = data.get("meta", {}).get("lastTouchedVersion", "")
-                    
-                    if not version:
-                        self.version_number = "未知版本"
-                        self.version_type = "(未知)"
-                        return "clawdbot"
-
-                    self.version_number = version
-                    
-                    if "cn" in version.lower():
-                        self.version_type = "(汉化版)"
-                        self.log(self.txt_system, f"版本验证: {version} -> Moltbot-CN", "SUCCESS")
-                        return "moltbot-cn"
-                    else:
-                        self.version_type = "(原版)"
-                        self.log(self.txt_system, f"版本验证: {version} -> Clawdbot", "SUCCESS")
-                        return "clawdbot"
-                        
+                    # 兼容新旧格式读取
+                    ver = data.get("meta", {}).get("lastTouchedVersion", "")
+                    if ver:
+                        self.version_number = ver
             except Exception as e:
-                self.log(self.txt_system, f"配置文件读取失败: {e}，回退到自动检测。", "ERROR")
+                self.log(self.txt_system, f"版本读取失败: {e}", "ERROR")
+
+        # 2. 检测可执行文件 (决定程序类型)
+        # 优先级: OpenClaw (最新) > Moltbot-CN (汉化) > Clawdbot (旧版)
         
-        # 兜底检测
+        if shutil.which("openclaw"):
+            self.version_type = "(OpenClaw)"
+            self.log(self.txt_system, f"检测到新版核心: openclaw (版本: {self.version_number})", "SUCCESS")
+            return "openclaw"
+            
         if shutil.which("moltbot-cn"):
-            self.version_number = "自动检测"
-            self.version_type = "(Moltbot-CN)"
+            self.version_type = "(汉化版)"
+            self.log(self.txt_system, f"检测到汉化核心: moltbot-cn (版本: {self.version_number})", "SUCCESS")
             return "moltbot-cn"
+            
         if shutil.which("clawdbot"):
-            self.version_number = "自动检测"
-            self.version_type = "(Clawdbot)"
+            self.version_type = "(原版)"
+            self.log(self.txt_system, f"检测到旧版核心: clawdbot (版本: {self.version_number})", "SUCCESS")
             return "clawdbot"
 
-        self.version_number = "无"
         self.version_type = "(未安装)"
-        messagebox.showerror("错误", "未检测到 moltbot-cn 或 clawdbot。")
+        messagebox.showerror("错误", "未检测到 openclaw / moltbot-cn / clawdbot。\n请先安装核心程序。")
         return None
 
     # ==========================================
@@ -361,7 +361,7 @@ class UniversalLauncher:
         style = ttk.Style()
         style.configure(".", font=self.f_small)
         
-        # [修改] 压缩按钮内边距 padding=3
+        # 按钮字体 (美化 padding=3)
         style.configure("TButton", font=self.f_body, padding=3)
         style.configure("Accent.TButton", font=(self.f_body[0], self.f_body[1], "bold"), padding=3)
         style.configure("Stop.TButton", foreground="#d65745", font=(self.f_body[0], self.f_body[1], "bold"), padding=3)
@@ -381,8 +381,9 @@ class UniversalLauncher:
         style.configure("StatusYellow.TLabel", foreground="#f59f00", font=self.f_small)
         
         # 版本号高亮
-        style.configure("VerCN.TLabel", foreground="#ff4500", font=("Microsoft YaHei UI", 10, "bold"))
-        style.configure("VerOrg.TLabel", foreground="#0078d4", font=("Microsoft YaHei UI", 10, "bold"))
+        style.configure("VerCN.TLabel", foreground="#ff4500", font=("Microsoft YaHei UI", 10, "bold")) # 汉化-橙
+        style.configure("VerOrg.TLabel", foreground="#0078d4", font=("Microsoft YaHei UI", 10, "bold")) # 原版-蓝
+        style.configure("VerNew.TLabel", foreground="#00b7c3", font=("Microsoft YaHei UI", 10, "bold")) # OpenClaw-青
 
     def setup_dashboard(self, parent):
         self.var_minimize_tray = tk.BooleanVar(value=self.config.get("minimize_to_tray", False))
@@ -408,8 +409,10 @@ class UniversalLauncher:
             foreground="#555555"
         ).pack(side="left", anchor="center")
         
-        is_cn = "汉化" in self.version_type or "Moltbot" in self.version_type
-        ver_color = "#ff4500" if is_cn else "#0078d4"
+        # 动态配色
+        ver_color = "#0078d4" # 默认蓝
+        if "汉化" in self.version_type: ver_color = "#ff4500"
+        elif "OpenClaw" in self.version_type: ver_color = "#00b7c3" # 青色
 
         ttk.Label(
             ver_frame, 
@@ -435,9 +438,6 @@ class UniversalLauncher:
         content_box = ttk.Frame(main_container)
         content_box.pack(fill="x", expand=True)
         
-        # [修改] 重新分配权重
-        # Column 0 (状态) 占有所有剩余拉伸空间 (weight=1)
-        # Column 1 (按钮) 不占用额外拉伸空间 (weight=0) -> 这样按钮就会保持 fixed width
         content_box.columnconfigure(0, weight=1) 
         content_box.columnconfigure(1, weight=0)
 
@@ -448,10 +448,9 @@ class UniversalLauncher:
         # 自动均分垂直空间
         status_panel.rowconfigure(0, weight=1)
         status_panel.rowconfigure(1, weight=1)
-        # 内容靠左
         status_panel.columnconfigure(3, weight=1) 
         
-        # Gateway 行 (还原尺寸)
+        # Gateway 行
         ttk.Label(status_panel, text="🧠", style="Emoji.TLabel").grid(row=0, column=0, padx=(5, 10))
         ttk.Label(status_panel, text="Gateway", style="Title.TLabel").grid(row=0, column=1, sticky="w", padx=(0, 20))
         self.light_gw = StatusLight(status_panel, size=14) 
@@ -459,7 +458,7 @@ class UniversalLauncher:
         self.lbl_gw_state = ttk.Label(status_panel, textvariable=self.status_gw_text, style="StatusRed.TLabel")
         self.lbl_gw_state.grid(row=0, column=3, sticky="w")
 
-        # Node 行 (还原尺寸)
+        # Node 行
         ttk.Label(status_panel, text="💻", style="Emoji.TLabel").grid(row=1, column=0, padx=(5, 10))
         ttk.Label(status_panel, text="Node", style="Title.TLabel").grid(row=1, column=1, sticky="w", padx=(0, 20))
         self.light_node = StatusLight(status_panel, size=14)
@@ -469,24 +468,21 @@ class UniversalLauncher:
 
         # --- B2. 右侧：操作按钮组 ---
         btn_panel = ttk.Frame(content_box)
-        # sticky="ne" 靠右对齐, padx=(15, 0) 留白
         btn_panel.grid(row=0, column=1, sticky="ne", padx=(15, 0))
 
-        # 按钮配置 (固定宽度 width=22)
-        # 高度压缩 (ipady=0)
         FIXED_BTN_WIDTH = 20
         
         btn1 = ttk.Button(btn_panel, text="🚀  一键启动", style="Accent.TButton", width=FIXED_BTN_WIDTH, takefocus=0, command=self.start_services)
-        btn1.pack(fill="x", pady=(0, 5), ipady=1) 
+        btn1.pack(fill="x", pady=(0, 5), ipady=0) 
         
         btn2 = ttk.Button(btn_panel, text="🛑  全部停止", style="Stop.TButton", width=FIXED_BTN_WIDTH, takefocus=0, command=lambda: threading.Thread(target=self.stop_all).start())
-        btn2.pack(fill="x", pady=(0, 5), ipady=1) 
+        btn2.pack(fill="x", pady=(0, 5), ipady=0) 
         
         btn3 = ttk.Button(btn_panel, text="🌐  Web 控制台", style="Link.TButton", width=FIXED_BTN_WIDTH, takefocus=0, command=self.open_web_ui)
-        btn3.pack(fill="x", pady=(0, 0), ipady=1) 
+        btn3.pack(fill="x", pady=(0, 0), ipady=0) 
 
     # ==========================================
-    #  业务逻辑与后台任务
+    #  业务逻辑
     # ==========================================
     def save_tray_setting(self):
         self.config["minimize_to_tray"] = self.var_minimize_tray.get()
@@ -628,6 +624,7 @@ class UniversalLauncher:
         if self.proc_node: 
             subprocess.run(f"taskkill /F /T /PID {self.proc_node.pid}", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=kill_flags)
         
+        # 仅停止 Node 进程
         subprocess.run("taskkill /F /IM node.exe", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=kill_flags)
         
         self.gateway_ready = False
