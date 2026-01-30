@@ -81,10 +81,7 @@ class StatusLight(tk.Canvas):
         self.itemconfig(self.indicator, fill=color)
 
 # ==========================================
-# 4. 日志组件 (高性能缓冲版)
-# ==========================================
-# ==========================================
-# 4. 日志组件 (修复：智能滚动 + 高性能缓冲)
+# 4. 日志组件 (紧凑版)
 # ==========================================
 class ModernLog(ttk.Frame):
     def __init__(self, parent, **kwargs):
@@ -98,36 +95,36 @@ class ModernLog(ttk.Frame):
             yscrollcommand=self.v_scroll.set, 
             wrap="word", 
             font=("Consolas", 10), 
-            padx=10, pady=10, 
+            spacing1=2, 
+            spacing3=2, 
+            padx=5, pady=5, 
             borderwidth=0, 
             highlightthickness=0, 
             takefocus=0, 
-            bg="#f4f4f4", 
+            bg="#f6f6f6",  
             fg="#333333",
+            selectbackground="#0078d4",
+            selectforeground="white",
             **kwargs
         )
         self.text.pack(side="left", fill="both", expand=True)
         self.v_scroll.config(command=self.text.yview)
         
-        self.text.tag_config('INFO', foreground='')
-        self.text.tag_config('ERROR', foreground='#d32f2f') 
-        self.text.tag_config('SUCCESS', foreground='#2e7d32') 
-        self.text.tag_config('CMD', foreground='#1565c0') 
-        self.text.tag_config('DEBUG', foreground='#757575') 
+        self.text.tag_config('INFO', foreground='#555555')
+        self.text.tag_config('ERROR', foreground='#d32f2f', font=("Consolas", 10, "bold")) 
+        self.text.tag_config('SUCCESS', foreground='#107c10', font=("Consolas", 10, "bold")) 
+        self.text.tag_config('CMD', foreground='#005a9e') 
+        self.text.tag_config('DEBUG', foreground='#999999') 
 
     def insert(self, *args):
         try:
-            # [核心修复] 智能滚动判断
-            # yview() 返回 (top, bottom)，范围是 0.0 到 1.0
-            # 如果 bottom == 1.0，说明用户当前正看着最底部 -> 需要自动滚动
-            # 如果 bottom < 1.0，说明用户向上翻看历史日志 -> 不需要自动滚动
+            # 智能滚动
             was_at_bottom = self.text.yview()[1] == 1.0
-
+            
             self.text.config(state='normal')
             self.text.insert(*args)
             self.text.config(state='disabled')
             
-            # 只有当用户原本就在最底部时，才自动跳转
             if was_at_bottom:
                 self.text.see(tk.END)
         except: pass
@@ -176,6 +173,7 @@ class UniversalLauncher:
         self.is_quitting = False 
         self.programmatic_action = False
 
+        # 定义基础字体样式
         self.f_title = ("Microsoft YaHei UI", 12, "bold") 
         self.f_body = ("Microsoft YaHei UI", 11)          
         self.f_small = ("Microsoft YaHei UI", 10)         
@@ -209,9 +207,9 @@ class UniversalLauncher:
         
         self.txt_system = ModernLog(self.bottom_frame)
         
-        # [兼容性] 检测版本 (初始化版本信息)
-        self.version_number = "" # 纯数字版本号
-        self.version_type = ""   # 类型：原版/汉化
+        # [兼容性] 检测版本
+        self.version_number = "" 
+        self.version_type = ""   
         self.cli_cmd = self._detect_cli_command()
         
         # UI 初始化
@@ -361,43 +359,43 @@ class UniversalLauncher:
 
     def apply_styles(self):
         style = ttk.Style()
-        # 通用小字体
         style.configure(".", font=self.f_small)
         
-        # 按钮字体
-        style.configure("TButton", font=self.f_body)
-        style.configure("Accent.TButton", font=self.f_body)
-        style.configure("Stop.TButton", foreground="#d65745", font=self.f_body)
-        style.configure("Link.TButton", foreground="#0078d4", font=self.f_body)
+        # [修改] 压缩按钮内边距 padding=3
+        style.configure("TButton", font=self.f_body, padding=3)
+        style.configure("Accent.TButton", font=(self.f_body[0], self.f_body[1], "bold"), padding=3)
+        style.configure("Stop.TButton", foreground="#d65745", font=(self.f_body[0], self.f_body[1], "bold"), padding=3)
+        style.configure("Link.TButton", foreground="#0078d4", font=self.f_body, padding=3)
         
-        # 托盘复选框字体
+        # 托盘复选框
         style.configure("Tray.TCheckbutton", font=self.f_small)
         style.configure("TLabelframe.Label", font=self.f_small, foreground="#0078d4")
         
-        # --- [还原] 恢复原来的小字号 ---
-        style.configure("Title.TLabel", font=self.f_title)     # 还原为 12 bold
-        style.configure("Emoji.TLabel", font=self.f_emoji)     # 还原为 14
+        # 状态栏使用原始小尺寸
+        style.configure("Title.TLabel", font=self.f_title)     # 12 bold
+        style.configure("Emoji.TLabel", font=self.f_emoji)     # 14
         
-        # 状态文字还原为小字号 (10)
+        # 状态文字 (小字号)
         style.configure("StatusGreen.TLabel", foreground="#2f9e44", font=self.f_small)
         style.configure("StatusRed.TLabel", foreground="gray", font=self.f_small)
         style.configure("StatusYellow.TLabel", foreground="#f59f00", font=self.f_small)
         
-        # 版本号高亮样式
+        # 版本号高亮
         style.configure("VerCN.TLabel", foreground="#ff4500", font=("Microsoft YaHei UI", 10, "bold"))
         style.configure("VerOrg.TLabel", foreground="#0078d4", font=("Microsoft YaHei UI", 10, "bold"))
+
     def setup_dashboard(self, parent):
         self.var_minimize_tray = tk.BooleanVar(value=self.config.get("minimize_to_tray", False))
         
-        # 容器 Frame
-        main_container = ttk.Frame(parent, padding=20)
+        # 容器 Frame (padding=15 减少留白)
+        main_container = ttk.Frame(parent, padding=15)
         main_container.pack(fill="x", expand=True)
 
         # ===============================================
         #  区域 A: 顶部栏
         # ===============================================
         top_bar = ttk.Frame(main_container)
-        top_bar.pack(fill="x", pady=(0, 25))
+        top_bar.pack(fill="x", pady=(0, 10))
 
         # A1. 左侧：版本号
         ver_frame = ttk.Frame(top_bar)
@@ -410,7 +408,6 @@ class UniversalLauncher:
             foreground="#555555"
         ).pack(side="left", anchor="center")
         
-        # 判断颜色
         is_cn = "汉化" in self.version_type or "Moltbot" in self.version_type
         ver_color = "#ff4500" if is_cn else "#0078d4"
 
@@ -438,49 +435,55 @@ class UniversalLauncher:
         content_box = ttk.Frame(main_container)
         content_box.pack(fill="x", expand=True)
         
-        content_box.columnconfigure(0, weight=3) 
-        content_box.columnconfigure(1, weight=1)
+        # [修改] 重新分配权重
+        # Column 0 (状态) 占有所有剩余拉伸空间 (weight=1)
+        # Column 1 (按钮) 不占用额外拉伸空间 (weight=0) -> 这样按钮就会保持 fixed width
+        content_box.columnconfigure(0, weight=1) 
+        content_box.columnconfigure(1, weight=0)
 
         # --- B1. 左侧：状态显示区 ---
         status_panel = ttk.Frame(content_box)
         status_panel.grid(row=0, column=0, sticky="nsew") 
         
-        # [关键] 保留权重，让两行平分垂直空间，实现高度对齐
+        # 自动均分垂直空间
         status_panel.rowconfigure(0, weight=1)
         status_panel.rowconfigure(1, weight=1)
+        # 内容靠左
         status_panel.columnconfigure(3, weight=1) 
         
-        # Gateway 行
-        ttk.Label(status_panel, text="🧠", style="Emoji.TLabel").grid(row=0, column=0, padx=(5, 10)) # 还原 padx
+        # Gateway 行 (还原尺寸)
+        ttk.Label(status_panel, text="🧠", style="Emoji.TLabel").grid(row=0, column=0, padx=(5, 10))
         ttk.Label(status_panel, text="Gateway", style="Title.TLabel").grid(row=0, column=1, sticky="w", padx=(0, 20))
-        # [还原] 指示灯大小改为 12
-        self.light_gw = StatusLight(status_panel, size=12)
+        self.light_gw = StatusLight(status_panel, size=14) 
         self.light_gw.grid(row=0, column=2, padx=(0, 10))
         self.lbl_gw_state = ttk.Label(status_panel, textvariable=self.status_gw_text, style="StatusRed.TLabel")
         self.lbl_gw_state.grid(row=0, column=3, sticky="w")
 
-        # Node 行
+        # Node 行 (还原尺寸)
         ttk.Label(status_panel, text="💻", style="Emoji.TLabel").grid(row=1, column=0, padx=(5, 10))
         ttk.Label(status_panel, text="Node", style="Title.TLabel").grid(row=1, column=1, sticky="w", padx=(0, 20))
-        # [还原] 指示灯大小改为 12
-        self.light_node = StatusLight(status_panel, size=12)
+        self.light_node = StatusLight(status_panel, size=14)
         self.light_node.grid(row=1, column=2, padx=(0, 10))
         self.lbl_node_state = ttk.Label(status_panel, textvariable=self.status_node_text, style="StatusRed.TLabel")
         self.lbl_node_state.grid(row=1, column=3, sticky="w")
 
         # --- B2. 右侧：操作按钮组 ---
         btn_panel = ttk.Frame(content_box)
-        btn_panel.grid(row=0, column=1, sticky="nsew", padx=(30, 0))
+        # sticky="ne" 靠右对齐, padx=(15, 0) 留白
+        btn_panel.grid(row=0, column=1, sticky="ne", padx=(15, 0))
 
-        # 按钮配置
-        btn1 = ttk.Button(btn_panel, text="🚀  一键启动", style="Accent.TButton", takefocus=0, command=self.start_services)
-        btn1.pack(fill="x", pady=(0, 10), ipady=5) 
+        # 按钮配置 (固定宽度 width=22)
+        # 高度压缩 (ipady=0)
+        FIXED_BTN_WIDTH = 20
         
-        btn2 = ttk.Button(btn_panel, text="🛑  全部停止", style="Stop.TButton", takefocus=0, command=lambda: threading.Thread(target=self.stop_all).start())
-        btn2.pack(fill="x", pady=(0, 10), ipady=5)
+        btn1 = ttk.Button(btn_panel, text="🚀  一键启动", style="Accent.TButton", width=FIXED_BTN_WIDTH, takefocus=0, command=self.start_services)
+        btn1.pack(fill="x", pady=(0, 5), ipady=1) 
         
-        btn3 = ttk.Button(btn_panel, text="🌐  Web 控制台", style="Link.TButton", takefocus=0, command=self.open_web_ui)
-        btn3.pack(fill="x", pady=(0, 0), ipady=5)
+        btn2 = ttk.Button(btn_panel, text="🛑  全部停止", style="Stop.TButton", width=FIXED_BTN_WIDTH, takefocus=0, command=lambda: threading.Thread(target=self.stop_all).start())
+        btn2.pack(fill="x", pady=(0, 5), ipady=1) 
+        
+        btn3 = ttk.Button(btn_panel, text="🌐  Web 控制台", style="Link.TButton", width=FIXED_BTN_WIDTH, takefocus=0, command=self.open_web_ui)
+        btn3.pack(fill="x", pady=(0, 0), ipady=1) 
 
     # ==========================================
     #  业务逻辑与后台任务
