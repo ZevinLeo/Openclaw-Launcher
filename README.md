@@ -12,7 +12,7 @@
 * [四、 💻 命令行安装与向导配置](#install)
 * [五、 🔑 大模型配置](#apikey-config)
 * [六、 🛠️ 常用命令](#commands)
-* [七、 ✅ 正确配置展示](#verify)
+* [七、 ✅ 验证配置文件](#verify)
 * [八、 📂 文件结构与安全建议](#structure)
 * [九、 ❓ FAQ](#faq)
 
@@ -31,7 +31,7 @@ Openclaw 是一个开源的本地 AI 助手枢纽，它允许你将最顶尖的 
 
 ---
 
-## <span id="launcher">三、 🚀 (推荐) 使用 Openclaw Launcher</span>
+## <span id="launcher">三、 🚀 Openclaw Launcher</span>
 
 **🦞 Openclaw Launcher v2.0 (Modern UI)**
 
@@ -239,14 +239,14 @@ Ctrl+C to stop.
 
 ---
 
-## <span id="apikey-config">五、 🔑 必做：填入 API Key</span>
+## <span id="apikey-config">五、🔑 大模型配置</span>
 
 **注意：** 无论使用 Launcher 还是命令行，初次配置都需要手动填入 Key。
 
-### ⚠️ 阿里云 Qwen (通义千问) 用户特别警告
+### ⚠️ 阿里云 Qwen (通义千问) 注意！
 
-> 如果使用**国内版** API Key，配置文件中的 provider 名字**绝对不能叫 `qwen**`！
-> * **原因**：Clawdbot 会将 `qwen` 强制重定向到国际版接口，导致 `401 Unauthorized`。
+> 如果使用**国内版** API Key，配置文件中的 provider 名字**不能叫 `qwen**`！
+> * **原因**：Openclaw 会将 `qwen` 强制重定向到国际版接口，导致 `401 Unauthorized`。
 > * **解决**：请自定义名字为 **`qwencn`** 或 `qwenchina`等。
 > 
 > 
@@ -355,7 +355,7 @@ Ctrl+C to stop.
 
 ---
 
-## <span id="verify">七、 ✅ 验证与成功案例展示</span>
+## <span id="verify">七、 ✅ 验证配置文件</span>
 
 
 ### 1. 访问 Web UI 确认运行
@@ -368,7 +368,7 @@ Ctrl+C to stop.
 <p><em>▲ openclaw Web UI 控制台：显示 DeepSeek V3 与 Qwen3-VL-Plus 配置就绪</em></p>
 </div>
 
-### 2. WhatsApp 真机测试
+### 2. WhatsApp 测试
 
 拿起手机，向配置好的 WhatsApp 机器人发送消息：`介绍你使用的所有大模型`。
 如下图所示，机器人能够精准调用 DeepSeek 进行文本回复，并列出当前的配置详情。
@@ -400,7 +400,7 @@ Ctrl+C to stop.
 
 ---
 
-## <span id="faq">九、 ❓ 常见问题 FAQ</span>
+## <span id="faq">九、❓ FAQ</span>
 
 * **Q: 为什么 Qwen 报错 401？**
 * A: 检查配置文件中 provider 名字是否写成了 `qwen`。如果是，请改为 `qwencn`。
