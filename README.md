@@ -33,9 +33,9 @@ Openclaw 是一个开源的本地 AI 助手枢纽，它允许你将最顶尖的 
 
 ## <span id="launcher">三、 🚀 Openclaw Launcher</span>
 
-**🦞 Openclaw Launcher v2.0 (Modern UI)**
+**🦞 Openclaw Launcher**
 
-此软件旨在简化 openclaw 的部署与管理流程，采用现代化的 Sun Valley UI 设计，彻底告别繁琐的命令行。
+此软件旨在简化 openclaw 的部署与管理流程，无需使用命令行启动相关openclaw服务。
 
 > **📸 界面预览**
 
