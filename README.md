@@ -64,7 +64,7 @@ Openclaw 是一个开源的本地 AI 助手枢纽，它允许你将最顶尖的 
 
 ## <span id="install">四、 💻 向导配置</span>
 
-如果您更喜欢通过终端掌控一切，或者需要在无 GUI 环境部署，请参考本章节。
+如部分功能需要通过终端控制，请参考本章节。
 
 ### 1. 安装工具
 ```bash
@@ -79,7 +79,7 @@ openclaw onboard
 
 ```
 
-### 3. 向导交互实录 (请严格按以下步骤操作)
+### 3. 配置交互 (请严格按以下步骤操作)
 
 #### 3.1 启动模式与安全确认
 
@@ -94,7 +94,7 @@ openclaw onboard
 
 #### 3.2 配置 AI 模型 (手动指定)
 
-这里我们跳过内置提供商，直接手动指定模型名称。
+这里我们跳过内置提供商，手动指定模型名称。
 
 ```text
 ◇  Model/auth provider
@@ -112,13 +112,13 @@ openclaw onboard
 ```
 
 > **📝 输入提示 (非常重要)：**
-> * **DeepSeek V3**: 输入 `deepseek/deepseek-chat`
-> * **DeepSeek R1**: 输入 `deepseek/deepseek-reasoner`
+> * **DeepSeek **: 输入 `deepseek/deepseek-chat`
+> * **DeepSeek 深度思考**: 输入 `deepseek/deepseek-reasoner`
 > * **阿里云 Qwen**: 建议输入 `qwencn/qwen-vl-plus` (不要用 qwen 开头，原因见第五章)
 > 
 > 
 
-#### 3.3 配置聊天渠道 (二选一)
+#### 3.3 配置聊天渠道
 
 ##### 🟢 选项 A：配置 WhatsApp
 
