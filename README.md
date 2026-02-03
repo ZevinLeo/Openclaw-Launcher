@@ -8,13 +8,13 @@
 
 * [一、 简介](#intro)
 * [二、 系统要求](#requirements)
-* [三、 🚀 (推荐) 使用 Clawdbot Launcher](#launcher)
-* [四、 💻 (进阶) 命令行安装与向导配置](#install)
-* [五、 🔑 必做：填入 API Key (含 Qwen 避坑指南)](#apikey-config)
-* [六、 🛠️ 常用命令速查手册](#commands)
-* [七、 ✅ 验证与成功案例展示](#verify)
+* [三、 🚀 使用 Openclaw Launcher](#launcher)
+* [四、 💻 命令行安装与向导配置](#install)
+* [五、 🔑 大模型配置](#apikey-config)
+* [六、 🛠️ 常用命令](#commands)
+* [七、 ✅ 正确配置展示](#verify)
 * [八、 📂 文件结构与安全建议](#structure)
-* [九、 ❓ 常见问题 FAQ](#faq)
+* [九、 ❓ FAQ](#faq)
 
 ---
 
