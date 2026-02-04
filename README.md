@@ -1,6 +1,6 @@
 # 🦞 Openclaw 使用教程
 
-> **最后更新:** 2026-02-03
+> **最后更新:** 2026-02-04 (适配 Launcher v1.2)
 
 ---
 
@@ -33,32 +33,56 @@ Openclaw 是一个开源的本地 AI 助手枢纽，它允许你将最顶尖的 
 
 ## <span id="launcher">三、 🚀 Openclaw Launcher</span>
 
-**🦞 Openclaw Launcher**
+**🦞 Openclaw Launcher (v1.2)**
 
-此软件旨在简化 openclaw 的部署与管理流程，无需使用命令行启动相关openclaw服务。
+此软件旨在简化 openclaw 的部署与管理流程，无需使用命令行启动相关 openclaw 服务。v1.2 版本引入了全新的事件驱动架构与智能管理功能。
 
 > **📸 界面预览**
 
 <div align="center">
-  <img src="./images/launcher-preview.png" width="700" alt="Openclaw Launcher 界面预览" style="border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); margin: 20px 0;">
-  <p><em>▲ 全新界面：支持状态灯监控、彩色日志与托盘守护</em></p>
+<img src="./images/launcher-preview.png" width="700" alt="Openclaw Launcher 界面预览" style="border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); margin: 20px 0;">
+<p><em>▲ v1.2 新界面：支持双版本显示、三色状态灯与智能控制台</em></p>
 </div>
 
 ### 🎉 核心亮点 (Highlights)
-* **🎨 现代化界面**：基于 `sv_ttk` 的清爽亮色主题，操作直观。
-* **🧠 双核驱动**：
-    * **Gateway (大脑)**：自动检测 HTTP 健康状态，智能判断服务是否就绪。
-    * **Node (手脚)**：后台静默启动 Node 进程，并实时监控连接状态。
-* **📝 彩色日志**：内置现代化日志窗口，支持关键词高亮（成功、错误、命令），运行状态一目了然。
+
+* **🏷️ 双核自动识别**：
+* 自动检测系统中安装的是 `OpenClaw` 原版还是 `OpenClaw-CN` 中文版。
+* 标题栏与界面实时显示当前核心版本号（例如：`2026.2.5`）。
+
+
+* **⚡ 极速状态反馈**：
+* 采用 **事件驱动 (Event-Driven)** 机制，服务启动或连接成功的瞬间状态灯立即响应，告别轮询延迟。
+
+
+* **🧠 智能 WebUI 管理**：
+* **首次启动**：自动执行鉴权命令，生成带 Token 的 URL 实现自动登录。
+* **后续启动**：直连本地接口 (`127.0.0.1:18789`)，秒开控制台。
+
+
+* **📂 目录洁癖友好**：
+* 配置文件自动迁移至 `%LOCALAPPDATA%`，保持 EXE 所在目录绝对纯净。
+
+
 * **🛡️ 托盘守护**：支持“最小化到托盘”，关闭窗口后自动缩入右下角，全天候守护您的 AI 服务。
-* **⚡️ 自动提权**：内置管理员权限请求，自动解决端口占用和防火墙拦截问题。
 
 ### 🕹️ 操作指南
-1.  **一键启动**：点击“🚀 一键启动”，软件会自动按顺序拉起 Gateway 和 Node 服务。
-2.  **状态监控**：
-    * **Gateway 灯**：🟢 绿色代表 API 服务已就绪 (HTTP 200 OK)。
-    * **Node 灯**：🟢 绿色代表已成功连接到网关，🟡 黄色代表正在连接中。
-3.  **Web 控制台**：点击“🌐 Web 控制台”可直接在浏览器中打开管理后台。
+
+1. **一键启动**：点击“🚀 一键启动”，软件会自动按顺序拉起 Gateway 和 Node 服务。
+2. **状态监控**：
+* **⚪ 灰色**：服务未运行或已停止。
+* **🟡 黄色**：服务正在启动或正在建立连接（中间状态）。
+* **🟢 绿色**：
+* **Gateway**: HTTP 服务已就绪 (200 OK)。
+* **Node**: 已成功连接到网关 (Connected)。
+
+
+
+
+3. **Web 控制台**：
+* 等待双灯变绿后，点击“🌐 Web 控制台”。首次点击会自动完成 Token 鉴权，无需手动复制粘贴。
+
+
 
 ---
 
@@ -67,8 +91,10 @@ Openclaw 是一个开源的本地 AI 助手枢纽，它允许你将最顶尖的 
 如部分功能需要通过终端控制，请参考本章节。
 
 ### 1. 安装工具
+
 ```bash
 npm install -g openclaw
+
 
 ```
 
@@ -76,6 +102,7 @@ npm install -g openclaw
 
 ```bash
 openclaw onboard
+
 
 ```
 
@@ -89,6 +116,7 @@ openclaw onboard
 
 ◇  Onboarding mode
 │  QuickStart  ← 选择此项
+
 
 ```
 
@@ -108,6 +136,7 @@ openclaw onboard
 
 ◇  Default model
 │  deepseek/deepseek-chat
+
 
 ```
 
@@ -138,6 +167,7 @@ openclaw onboard
 ◆  Allowed sender numbers
 │  +8618888888888  ← 输入你的手机号(带国家码)
 
+
 ```
 
 ##### 🔵 选项 B：配置 Telegram
@@ -159,6 +189,7 @@ openclaw onboard
 ◇  Telegram whitelist (optional)
 │  123456789  ← 填入 User ID
 
+
 ```
 
 #### 3.4 配置技能 (Skills)
@@ -176,6 +207,7 @@ openclaw onboard
 │
 ◆  Configure skills now? (recommended)
 │  ○ Yes / ● No   ← 选择 No 跳过
+
 
 ```
 
@@ -195,6 +227,7 @@ openclaw onboard
 │  ◻ 📝 command-logger
 │  ◼ 💾 session-memory  ← 按空格键勾选此项 (变成实心方块)
 
+
 ```
 
 #### 3.6 启动网关服务 (Gateway)
@@ -211,6 +244,7 @@ openclaw onboard
 │  ○ Reinstall
 │  ○ Skip
 
+
 ```
 
 **(此时会弹出新的命令行窗口，显示如下日志即代表启动成功)**
@@ -223,6 +257,7 @@ openclaw onboard
 06:41:44 [whatsapp] Listening for personal WhatsApp inbound messages.
 Ctrl+C to stop.
 
+
 ```
 
 #### 3.7 完成并打开界面
@@ -234,6 +269,7 @@ Ctrl+C to stop.
 │  ○ Hatch in TUI (recommended)
 │  ● Open the Web UI  ← 选择此项打开网页版
 │  ○ Do this later
+
 
 ```
 
@@ -254,8 +290,8 @@ Ctrl+C to stop.
 ### 操作步骤
 
 1. **打开配置文件**：
-* Windows: `C:\Users\你的用户名\.openclaw\openclaw.json`
 
+* Windows: `C:\Users\你的用户名\.openclaw\openclaw.json`
 
 2. **修改 `models` 部分** ：
 
@@ -289,6 +325,7 @@ Ctrl+C to stop.
   }
 }
 
+
 ```
 
 #### 🅱️ 方案 B：使用阿里云 Qwen (国内版)
@@ -302,7 +339,7 @@ Ctrl+C to stop.
     "mode": "merge",
     "providers": {
       "qwencn": {
-        "baseUrl": "[https://dashscope.aliyuncs.com/compatible-mode/v1](https://dashscope.aliyuncs.com/compatible-mode/v1)",
+        "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
         "apiKey": "sk-你的阿里云Key",
         "api": "openai-completions",
         "models": [
@@ -323,13 +360,13 @@ Ctrl+C to stop.
   }
 }
 
+
 ```
 
 3. **重启服务生效**：
+
 * **Launcher用户**: 点击界面上的 Restart 按钮。
 * **命令行用户**: 执行 `openclaw gateway restart`。
-
-
 
 ---
 
@@ -356,7 +393,6 @@ Ctrl+C to stop.
 ---
 
 ## <span id="verify">七、 ✅ 验证配置文件</span>
-
 
 ### 1. 访问 Web UI 确认运行
 
@@ -391,6 +427,7 @@ Ctrl+C to stop.
 ├── sessions/                  # 全局会话数据
 └── logs/                      # 日志文件夹
 
+
 ```
 
 ### 8.2 安全最佳实践
@@ -404,17 +441,7 @@ Ctrl+C to stop.
 
 * **Q: 为什么 Qwen 报错 401？**
 * A: 检查配置文件中 provider 名字是否写成了 `qwen`。如果是，请改为 `qwencn`。
-
-
 * **Q: Telegram 机器人没反应？**
 * A: 确认配置文件或向导中填写的 User ID 正确。
-
-
 * **Q: WhatsApp 怎么配对？**
 * A: 启动后用白名单手机号发消息，如提示配对，在命令行输入 `clawdbot pairing approve whatsapp <配对码>`。
-
-
-
-```
-
-```
