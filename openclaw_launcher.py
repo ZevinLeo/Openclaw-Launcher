@@ -52,12 +52,28 @@ if not is_admin():
         show_critical_error(f"提权失败: {e}")
 
 # ==========================================
-# 2. 配置管理
+# 2. 配置管理 (修改版：存入 AppData)
 # ==========================================
-CONFIG_FILE = "launcher_config.json"
+# 获取系统标准的 Local AppData 目录 (例如 C:\Users\你的名字\AppData\Local\OpenClawLauncher)
+def get_config_path():
+    app_data = os.getenv('LOCALAPPDATA')
+    if not app_data:
+        app_data = os.path.expanduser("~") #以此作为备选
+    
+    # 创建专属文件夹
+    config_dir = os.path.join(app_data, "OpenClawLauncher")
+    if not os.path.exists(config_dir):
+        try:
+            os.makedirs(config_dir)
+        except: pass # 权限不够时忽略
+        
+    return os.path.join(config_dir, "config.json")
+
+CONFIG_FILE = get_config_path()
 
 def load_config():
     default_conf = {"minimize_to_tray": False} 
+    # 如果配置文件不存在，直接返回默认
     if not os.path.exists(CONFIG_FILE): return default_conf
     try:
         with open(CONFIG_FILE, "r", encoding="utf-8") as f: return json.load(f)
@@ -65,6 +81,7 @@ def load_config():
 
 def save_config(config_data):
     try:
+        # 写入到 AppData 中
         with open(CONFIG_FILE, "w", encoding="utf-8") as f: json.dump(config_data, f, indent=4)
     except: pass
 
