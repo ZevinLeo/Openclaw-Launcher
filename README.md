@@ -1,4 +1,4 @@
-# 🦞 OpenClaw 通用启动器 (Universal Launcher)
+# 🦞 OpenClaw 通用启动器
 
 **OpenClaw Launcher** 是一个专为 [OpenClaw](https://github.com/openclaw/openclaw) 及其汉化分支 [OpenClaw-CN](https://clawd.org.cn) 设计的图形化管理工具。它旨在简化复杂的命令行操作，为用户提供一站式的安装、部署、监控和管理体验。
 
