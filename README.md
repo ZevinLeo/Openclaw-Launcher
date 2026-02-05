@@ -74,7 +74,7 @@ pip install sv-ttk pystray pillow
 
 ---
 
-## 📝 更新日志 (v1.10)
+## 📝 更新日志 (v1.4)
 
 ### 🚀 OpenClaw Launcher v1.10
 
