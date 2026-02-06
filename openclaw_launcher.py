@@ -591,7 +591,7 @@ class UniversalLauncher:
         wizard.title("OpenClaw 安装向导")
         
         # [修改 2] 移除固定 geometry，改用 minsize
-        wizard.minsize(580, 0)
+        wizard.minsize(500, 0)
         
         container = ttk.Frame(wizard, padding=20)
         container.pack(fill="both", expand=True)
