@@ -244,7 +244,7 @@ class UniversalLauncher:
     #  核心: 备份功能
     # ==========================================
     def _backup_user_data(self, target_root=None):
-        """ 备份数据到指定目录或默认文档目录 """
+        """ 备份数据到指定目录或默认桌面目录 """
         try:
             home = os.path.expanduser("~") 
             source_root = os.path.join(home, ".openclaw")
@@ -255,7 +255,8 @@ class UniversalLauncher:
 
             # 1. 确定备份根目录
             if not target_root:
-                target_root = os.path.join(home, "Documents", "OpenClaw_Backups")
+                # [修改] 默认路径改为桌面 (Desktop)
+                target_root = os.path.join(home, "Desktop", "OpenClaw_Backups")
             
             # 2. 创建带时间戳的子文件夹
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -264,7 +265,7 @@ class UniversalLauncher:
             os.makedirs(dest_dir, exist_ok=True)
             self.log(self.txt_system, f"正在创建备份: {dest_dir}", "CMD")
 
-            # [关键更新] 扩展了备份列表，包含 cron, credentials, devices
+            # 扩展了备份列表，包含 cron, credentials, devices
             items_to_backup = [
                 "openclaw.json", 
                 "agents", 
@@ -427,7 +428,7 @@ class UniversalLauncher:
         dlg.withdraw() # 1. 立即隐藏，幕后布局
         
         dlg.title("卸载 OpenClaw")
-        dlg.minsize(500, 0) # [Memory] 宽度保持 500
+        dlg.minsize(500, 0) # 宽度保持 500
 
         container = ttk.Frame(dlg, padding=20)
         container.pack(fill="both", expand=True)
@@ -438,7 +439,9 @@ class UniversalLauncher:
         f_backup = ttk.Labelframe(container, text="备份配置", padding=10)
         f_backup.pack(fill="x", pady=5)
 
-        default_backup_path = os.path.join(os.path.expanduser("~"), "Documents", "OpenClaw_Backups")
+        # [修改] 默认路径改为桌面 (Desktop)
+        default_backup_path = os.path.join(os.path.expanduser("~"), "Desktop", "OpenClaw_Backups")
+        
         self.var_backup_enabled = tk.BooleanVar(value=True)
         self.var_backup_path = tk.StringVar(value=default_backup_path)
 
@@ -475,7 +478,7 @@ class UniversalLauncher:
         f1.pack(fill="x", pady=10)
         
         lbl1 = ttk.Label(f1, text=f"运行 {self.cli_cmd} uninstall\n保留部分配置文件。", 
-                         foreground="#555555", justify="left", font=("Microsoft YaHei UI", 10))
+                         foreground="#555", justify="left", font=("Microsoft YaHei UI", 10))
         lbl1.pack(anchor="w")
         
         def run_standard_uninstall():
@@ -494,7 +497,6 @@ class UniversalLauncher:
         f2 = ttk.Labelframe(container, text="强力清理 (Force Clean)", padding=10)
         f2.pack(fill="x", pady=5)
         
-        # [修改] 颜色改为 #555555 (灰色)，不再是红色的 #d32f2f
         lbl2 = ttk.Label(f2, text="强制移除 NPM/PNPM 全局包及残留文件。\n适用于常规卸载失败的情况。", 
                          foreground="#555555", justify="left", font=("Microsoft YaHei UI", 10))
         lbl2.pack(anchor="w")
