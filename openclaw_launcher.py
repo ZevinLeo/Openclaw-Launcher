@@ -779,37 +779,58 @@ class UniversalLauncher:
         self.root.after(0, _update)
 
     def check_for_updates(self):
+        # [逻辑修正] 如果核心未安装，点击此按钮应重新召唤“安装向导”，而不是“更新窗口”
+        if not self.cli_cmd:
+            self._show_install_wizard()
+            return
+            
+        # 只有在已安装的情况下，才去联网检查版本
         threading.Thread(target=self._check_remote_version_thread, daemon=True).start()
 
     def _check_remote_version_thread(self):
         try:
-            if not self.cli_cmd:
-                self.root.after(0, lambda: self._show_update_dialog_manual(None))
-                return
+            if not self.cli_cmd: return
+
             local_ver = self.version_number_var.get()
             pkg_name = self.cli_cmd 
+            
             self.log(self.txt_system, f"正在连接云端检查 {pkg_name} ...", "INFO")
+            
             cmd = ["cmd", "/c", f"npm view {pkg_name} version"]
             startupinfo = subprocess.STARTUPINFO()
             startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-            process = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='ignore', creationflags=subprocess.CREATE_NO_WINDOW, startupinfo=startupinfo, timeout=8, cwd=self._safe_cwd())
+            
+            process = subprocess.run(
+                cmd, capture_output=True, text=True, encoding='utf-8', errors='ignore', 
+                creationflags=subprocess.CREATE_NO_WINDOW, startupinfo=startupinfo, timeout=8, cwd=self._safe_cwd()
+            )
+            
             remote_ver = process.stdout.strip()
+            
+            # 失败情况 1: npm 未安装或网络不通
             if not remote_ver or process.returncode != 0:
                 self.log(self.txt_system, "获取云端版本失败 (可能未安装 npm)。", "ERROR")
+                # [修改] 失败也走 _ask_force_update -> _trigger_auto_update，尝试自动更新
                 self.root.after(0, lambda: self._ask_force_update(local_ver, "未知"))
                 return
+            
             self.log(self.txt_system, f"云端最新版本: {remote_ver}", "INFO")
+            
+            # 正常流程
             if remote_ver != local_ver:
                 self.root.after(0, lambda: self._ask_update_confirm(local_ver, remote_ver))
             else:
                 self.root.after(0, lambda: self._ask_reinstall_confirm(local_ver))
+                
         except subprocess.TimeoutExpired:
             self.log(self.txt_system, "连接超时，无法获取最新版本。", "ERROR")
             self.root.after(0, lambda: self._ask_force_update(local_ver, "超时"))
+            
         except Exception as e:
             self.log(self.txt_system, f"版本检查错误: {e}", "ERROR")
-            self.root.after(0, lambda: self._show_update_dialog_manual(None))
-
+            # [修改] 发生异常时，也优先询问是否强制更新，而不是直接弹手动窗口
+            self.root.after(0, lambda: self._ask_force_update(local_ver, "错误"))
+            
     def _ask_update_confirm(self, local, remote):
         msg = f"发现新版本！\n\n本地版本: {local}\n最新版本: {remote}\n\n是否立即更新？"
         if messagebox.askyesno("版本更新", msg):
@@ -826,14 +847,29 @@ class UniversalLauncher:
             self._trigger_auto_update()
 
     def _trigger_auto_update(self):
+        """ 
+        智能更新分发器：
+        有配置 -> 自动执行，不弹窗。
+        无配置 -> 弹窗让用户选。
+        """
+        # 1. 尝试读取已保存的安装信息
         install_info = self.config.get("install_info")
+        
+        # 校验：配置存在，且核心类型 (openclaw/openclaw-cn) 与当前运行的一致
         if install_info and install_info.get("core") == self.cli_cmd:
             method = install_info.get("method")
+            self.log(self.txt_system, f"检测到历史安装配置 [{method}]，正在准备自动更新...", "INFO")
+            
+            # 生成对应的更新命令
             update_cmd = self._get_cmd_by_method(self.cli_cmd, method, is_update=True)
+            
             if update_cmd:
-                self.log(self.txt_system, "正在执行原地更新...", "INFO")
+                # 核心逻辑：直接启动更新线程，【彻底跳过】手动选择窗口
                 threading.Thread(target=self._run_update_sequence, args=(update_cmd, self.cli_cmd), daemon=True).start()
                 return
+
+        # 2. 只有在真的不知道怎么更新时，才弹窗询问
+        self.log(self.txt_system, "未找到历史安装配置，请手动选择更新方式。", "INFO")
         self._show_update_dialog_manual(None)
 
     def _show_update_dialog_manual(self, output):
