@@ -253,7 +253,7 @@ class UniversalLauncher:
                 self.log(self.txt_system, "未找到 .openclaw 文件夹，跳过备份。", "INFO")
                 return
 
-            # 1. 确定备份根目录 (如果用户没选，默认存到 Documents/OpenClaw_Backups)
+            # 1. 确定备份根目录
             if not target_root:
                 target_root = os.path.join(home, "Documents", "OpenClaw_Backups")
             
@@ -264,7 +264,15 @@ class UniversalLauncher:
             os.makedirs(dest_dir, exist_ok=True)
             self.log(self.txt_system, f"正在创建备份: {dest_dir}", "CMD")
 
-            items_to_backup = ["openclaw.json", "agents", "workspace"]
+            # [关键更新] 扩展了备份列表，包含 cron, credentials, devices
+            items_to_backup = [
+                "openclaw.json", 
+                "agents", 
+                "workspace", 
+                "cron", 
+                "credentials", 
+                "devices"
+            ]
             
             backed_up_count = 0
             for item in items_to_backup:
