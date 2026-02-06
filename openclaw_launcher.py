@@ -579,19 +579,18 @@ class UniversalLauncher:
             return
 
         style = ttk.Style()
-        # 设置 Tab 标签样式，保证文字居中和粗体
-        style.configure("Wizard.TNotebook.Tab", font=("Microsoft YaHei UI", 10, "bold"), width=36, padding=[5, 5], anchor="center")
+        # [修改 1] Tab 宽度从 36 改为 24，更紧凑
+        style.configure("Wizard.TNotebook.Tab", font=("Microsoft YaHei UI", 10, "bold"), width=24, padding=[5, 5], anchor="center")
 
         wizard = tk.Toplevel(self.root)
         self._wizard_window = wizard 
         
-        # [修改 1] 立即隐藏，防止闪烁
-        wizard.withdraw()
+        wizard.withdraw() # 立即隐藏
         
         wizard.title("OpenClaw 安装向导")
         
-        # [修改 2] 移除固定 geometry，改用 minsize
-        wizard.minsize(500, 0)
+        # [修改 2] 窗口最小宽度从 650 改为 550
+        wizard.minsize(550, 0)
         
         container = ttk.Frame(wizard, padding=20)
         container.pack(fill="both", expand=True)
@@ -602,7 +601,7 @@ class UniversalLauncher:
         ttk.Label(header_frame, text="⚠️ 未检测到核心程序", font=("Microsoft YaHei UI", 14, "bold"), foreground="black").pack(anchor="w")
         ttk.Label(header_frame, text="要运行此启动器，您需要先安装 OpenClaw 核心服务。", font=("Microsoft YaHei UI", 10), foreground="#666").pack(anchor="w", pady=(5,0))
 
-        # --- 安装逻辑闭包 ---
+        # --- 安装逻辑 ---
         def _do_install(core, method):
             if not self._check_node_installed():
                 if messagebox.askyesno("缺少必要依赖", "⚠️ 检测到系统未安装 Node.js 环境。\n\nOpenClaw 必须依赖 Node.js 才能运行。\n是否立即前往官网下载安装？"):
@@ -619,12 +618,11 @@ class UniversalLauncher:
         notebook = ttk.Notebook(container, style="Wizard.TNotebook")
         notebook.pack(fill="both", expand=True, pady=10)
 
-        # 辅助函数：创建安装选项行
+        # 辅助函数
         def create_row(parent, btn_text, btn_cmd, desc_text, is_primary=False):
             f = ttk.Frame(parent)
             f.pack(fill="x", pady=3)
             style = "Accent.TButton" if is_primary else "TButton"
-            # 统一按钮宽度
             btn = ttk.Button(f, text=btn_text, command=btn_cmd, style=style, width=24)
             btn.pack(side="left", padx=(5, 10))
             color = "#2f9e44" if is_primary else "#666666"
@@ -654,7 +652,7 @@ class UniversalLauncher:
         create_row(tab_cn, "NPM 全局安装", lambda: _do_install("openclaw-cn", "npm"), "npm install -g openclaw-cn@latest")
         create_row(tab_cn, "PNPM 全局安装", lambda: _do_install("openclaw-cn", "pnpm"), "pnpm add -g openclaw-cn@latest")
 
-        # [修改 3] 强制计算布局并居中
+        # 计算布局
         wizard.update() 
         
         w = wizard.winfo_reqwidth()
@@ -664,8 +662,6 @@ class UniversalLauncher:
         
         wizard.geometry(f"+{x}+{y}")
         
-        # [修改 4] 显示窗口
-        wizard.lift()
         wizard.deiconify() 
         wizard.focus_force()
     # ==========================================
@@ -830,7 +826,7 @@ class UniversalLauncher:
             self.log(self.txt_system, f"版本检查错误: {e}", "ERROR")
             # [修改] 发生异常时，也优先询问是否强制更新，而不是直接弹手动窗口
             self.root.after(0, lambda: self._ask_force_update(local_ver, "错误"))
-            
+
     def _ask_update_confirm(self, local, remote):
         msg = f"发现新版本！\n\n本地版本: {local}\n最新版本: {remote}\n\n是否立即更新？"
         if messagebox.askyesno("版本更新", msg):
