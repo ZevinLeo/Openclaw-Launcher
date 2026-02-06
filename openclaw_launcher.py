@@ -1,3 +1,4 @@
+from tkinter import filedialog  # [新增] 用于弹出文件夹选择框
 import tkinter as tk
 from tkinter import ttk, messagebox
 import subprocess
@@ -12,6 +13,7 @@ import re
 import urllib.request 
 import webbrowser
 import datetime
+import shutil
 from PIL import Image, ImageDraw, ImageFont, ImageTk
 
 # ==========================================
@@ -239,30 +241,85 @@ class UniversalLauncher:
         except: return False
 
     # ==========================================
+    #  核心: 备份功能
+    # ==========================================
+    def _backup_user_data(self, target_root=None):
+        """ 备份数据到指定目录或默认文档目录 """
+        try:
+            home = os.path.expanduser("~") 
+            source_root = os.path.join(home, ".openclaw")
+            
+            if not os.path.exists(source_root):
+                self.log(self.txt_system, "未找到 .openclaw 文件夹，跳过备份。", "INFO")
+                return
+
+            # 1. 确定备份根目录 (如果用户没选，默认存到 Documents/OpenClaw_Backups)
+            if not target_root:
+                target_root = os.path.join(home, "Documents", "OpenClaw_Backups")
+            
+            # 2. 创建带时间戳的子文件夹
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            dest_dir = os.path.join(target_root, f"Backup_{timestamp}")
+            
+            os.makedirs(dest_dir, exist_ok=True)
+            self.log(self.txt_system, f"正在创建备份: {dest_dir}", "CMD")
+
+            items_to_backup = ["openclaw.json", "agents", "workspace"]
+            
+            backed_up_count = 0
+            for item in items_to_backup:
+                s_path = os.path.join(source_root, item)
+                d_path = os.path.join(dest_dir, item)
+                
+                if os.path.exists(s_path):
+                    try:
+                        if os.path.isdir(s_path):
+                            shutil.copytree(s_path, d_path)
+                        else:
+                            shutil.copy2(s_path, d_path)
+                        self.log(self.txt_system, f"已备份: {item}", "SUCCESS")
+                        backed_up_count += 1
+                    except Exception as e:
+                        self.log(self.txt_system, f"备份 {item} 失败: {e}", "ERROR")
+            
+            if backed_up_count > 0:
+                self.log(self.txt_system, "备份流程完成。", "SUCCESS")
+                messagebox.showinfo("备份完成", f"已成功备份配置文件至：\n\n{dest_dir}")
+            else:
+                self.log(self.txt_system, "未发现可备份的配置文件。", "INFO")
+                try: os.rmdir(dest_dir) 
+                except: pass
+                
+        except Exception as e:
+            self.log(self.txt_system, f"备份过程发生严重错误: {e}", "ERROR")
+            messagebox.showerror("备份失败", f"无法执行备份: {e}")
+
+    # ==========================================
     #  核心: 命令生成器
     # ==========================================
     def _get_cmd_by_method(self, core, method, is_update=False):
         bash_flags = " -s -- --no-onboard" if is_update else ""
 
         if core == "openclaw":
-            # --- 原版 ---
             if method == "script_ps": 
                 return 'powershell -Command "iwr -useb https://openclaw.ai/install.ps1 | iex"'
             elif method == "script_bash": 
                 return f"curl -fsSL https://openclaw.ai/install.sh | bash{bash_flags}"
             elif method == "npm":
-                return "npm i -g openclaw" 
+                return "npm i -g openclaw" if not is_update else "npm i -g openclaw@latest"
             elif method == "pnpm":
-                return "pnpm add -g openclaw"
+                return "pnpm add -g openclaw" if not is_update else "pnpm add -g openclaw@latest"
 
         elif core == "openclaw-cn":
-            # --- 汉化版 ---
             if method == "script_ps": 
                 return 'powershell -Command "iwr -useb https://clawd.org.cn/install.ps1 | iex"'
             elif method == "script_bash": 
                 return f"curl -fsSL https://clawd.org.cn/install.sh | bash{bash_flags}"
             elif method == "npm":
-                return "npm install -g openclaw-cn@latest" 
+                if is_update:
+                    return "npm i -g openclaw-cn@latest --registry=https://registry.npmmirror.com"
+                else:
+                    return "npm install -g openclaw-cn@latest"
             elif method == "pnpm":
                 return "pnpm add -g openclaw-cn@latest" 
         
@@ -284,14 +341,12 @@ class UniversalLauncher:
     def _update_ui_after_detect(self, cmd_found, ver_num):
         self.version_number_var.set(ver_num)
         
-        # [核心修改] 根据是否检测到核心，启用或禁用按钮
         if cmd_found:
-            # 1. 启用按钮
             self.btn_start.config(state="normal")
             self.btn_stop.config(state="normal")
             self.btn_web.config(state="normal")
+            self.btn_uninstall.config(state="normal")
             
-            # 2. 设置界面信息
             if cmd_found == "openclaw-cn":
                 self.cli_cmd = "openclaw-cn"
                 self.version_type_var.set("(OpenClaw-CN)")
@@ -305,12 +360,11 @@ class UniversalLauncher:
                 self.root.title(f"OpenClaw 启动器 ({ver_num})")
                 self.log(self.txt_system, f"核心就绪: openclaw (版本 {ver_num})", "SUCCESS")
         else:
-            # 1. 禁用按钮
             self.btn_start.config(state="disabled")
             self.btn_stop.config(state="disabled")
             self.btn_web.config(state="disabled")
+            self.btn_uninstall.config(state="disabled")
             
-            # 2. 设置界面信息
             self.cli_cmd = None
             self.version_type_var.set("(未检测到核心)")
             self.lbl_ver_type.config(foreground="red")
@@ -320,7 +374,11 @@ class UniversalLauncher:
         startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
         try:
             cmd_list = ["cmd", "/c", f"{cmd_name} --version"]
-            result = subprocess.run(cmd_list, capture_output=True, text=True, shell=False, encoding='utf-8', errors='ignore', creationflags=subprocess.CREATE_NO_WINDOW, startupinfo=startupinfo, timeout=15, cwd=self._safe_cwd())
+            result = subprocess.run(
+                cmd_list, capture_output=True, text=True, shell=False, 
+                encoding='utf-8', errors='ignore', 
+                creationflags=subprocess.CREATE_NO_WINDOW, startupinfo=startupinfo, timeout=15, cwd=self._safe_cwd()
+            )
             if result.returncode == 0 and result.stdout:
                 output = result.stdout.strip()
                 pattern = r"v?(\d+\.\d+\.\d+(?:-[\w\d]+)?)"
@@ -332,14 +390,182 @@ class UniversalLauncher:
                       self.version_number = output.replace("v", "").strip()
                       return True
         except: pass
-
-        try:
-            check_exist = subprocess.run(["cmd", "/c", f"where {cmd_name}"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=subprocess.CREATE_NO_WINDOW, startupinfo=startupinfo, cwd=self._safe_cwd())
-            if check_exist.returncode == 0:
-                self.version_number = "已安装 (版本未知)"
-                return True
-        except: pass
         return False
+
+    # ==========================================
+    #  核心: 更新序列执行器
+    # ==========================================
+    def _run_update_sequence(self, update_cmd, core_name):
+        self.log(self.txt_system, ">>> 开始执行自动化更新队列...", "CMD")
+        self.log(self.txt_system, f"[1/3] 正在更新 {core_name}...", "INFO")
+        self._launch_blocking_window(update_cmd, f"{core_name} Updater")
+        self.log(self.txt_system, "[2/3] 正在运行诊断程序 (Doctor)...", "INFO")
+        doctor_cmd = f"{core_name} doctor"
+        self._launch_blocking_window(doctor_cmd, f"{core_name} Doctor", is_simple_cmd=True)
+        self.log(self.txt_system, "[3/3] 正在验证服务状态...", "INFO")
+        status_cmd = f"{core_name} status"
+        self._launch_blocking_window(status_cmd, f"{core_name} Status", is_simple_cmd=True)
+        self.log(self.txt_system, "更新流程完成，正在刷新状态...", "SUCCESS")
+        time.sleep(2)
+        self._async_detect_sequence()
+
+    # ==========================================
+    #  核心: 卸载/清理逻辑 (UI修正)
+    # ==========================================
+    def _show_uninstall_dialog(self):
+        if not self.cli_cmd: return
+
+        dlg = tk.Toplevel(self.root)
+        
+        # [关键优化 1] 创建后立即隐藏，防止用户看到计算过程中的闪烁
+        dlg.withdraw()
+        
+        dlg.title("卸载 OpenClaw")
+        
+        # 移除固定大小，使用 minsize + 自适应
+        dlg.minsize(450, 0)
+
+        container = ttk.Frame(dlg, padding=20)
+        container.pack(fill="both", expand=True)
+
+        ttk.Label(container, text="请选择卸载方式", font=("Microsoft YaHei UI", 12, "bold")).pack(pady=(0, 15))
+
+        # ===============================================
+        # 模块 1: 备份配置
+        # ===============================================
+        f_backup = ttk.Labelframe(container, text="备份配置", padding=10)
+        f_backup.pack(fill="x", pady=5)
+
+        default_backup_path = os.path.join(os.path.expanduser("~"), "Documents", "OpenClaw_Backups")
+        self.var_backup_enabled = tk.BooleanVar(value=True)
+        self.var_backup_path = tk.StringVar(value=default_backup_path)
+
+        row1 = ttk.Frame(f_backup)
+        row1.pack(fill="x")
+        
+        style = ttk.Style()
+        style.configure("Uninstall.TCheckbutton", font=("Microsoft YaHei UI", 10), foreground="#333333")
+        
+        chk = ttk.Checkbutton(row1, text="卸载前自动备份", variable=self.var_backup_enabled, style="Uninstall.TCheckbutton")
+        chk.pack(side="left")
+
+        def choose_dir():
+            path = filedialog.askdirectory(initialdir=self.var_backup_path.get(), title="选择备份保存位置")
+            if path: self.var_backup_path.set(path)
+
+        btn_browse = ttk.Button(row1, text="📂 修改...", width=8, command=choose_dir)
+        btn_browse.pack(side="right")
+
+        lbl_path = ttk.Label(f_backup, textvariable=self.var_backup_path, 
+                             foreground="#555555", font=("Microsoft YaHei UI", 9))
+        lbl_path.pack(anchor="w", pady=(5, 0), fill="x")
+
+        def on_label_resize(event):
+            lbl_path.config(wraplength=event.width - 10)
+        
+        lbl_path.bind("<Configure>", on_label_resize)
+
+        # ===============================================
+        # 模块 2: 常规卸载
+        # ===============================================
+        f1 = ttk.Labelframe(container, text="常规卸载 (推荐)", padding=10)
+        f1.pack(fill="x", pady=10)
+        
+        lbl1 = ttk.Label(f1, text=f"运行 {self.cli_cmd} uninstall\n保留部分配置文件。", 
+                         foreground="#555", justify="left", font=("Microsoft YaHei UI", 10))
+        lbl1.pack(anchor="w")
+        
+        def run_standard_uninstall():
+            if messagebox.askokcancel("确认卸载", f"即将运行: {self.cli_cmd} uninstall\n\n确定要继续吗？"):
+                dlg.destroy()
+                if self.var_backup_enabled.get():
+                    self._backup_user_data(self.var_backup_path.get())
+                
+                self.log(self.txt_system, "正在启动常规卸载程序...", "INFO")
+                cmd_str = f"{self.cli_cmd} uninstall"
+                threading.Thread(target=self._run_uninstall_sequence, args=(cmd_str,), daemon=True).start()
+
+        ttk.Button(f1, text="执行常规卸载", command=run_standard_uninstall).pack(fill="x", pady=(10, 0))
+
+        # ===============================================
+        # 模块 3: 强力清理
+        # ===============================================
+        f2 = ttk.Labelframe(container, text="强力清理 (Force Clean)", padding=10)
+        f2.pack(fill="x", pady=5)
+        
+        lbl2 = ttk.Label(f2, text="强制移除 NPM/PNPM 全局包及残留文件。\n适用于常规卸载失败的情况。", 
+                         foreground="#d32f2f", justify="left", font=("Microsoft YaHei UI", 10))
+        lbl2.pack(anchor="w")
+
+        def run_force_clean():
+            if messagebox.askyesno("高风险操作", "此操作将强制调用 npm/pnpm 移除命令，并物理删除可能残留的脚本文件。\n\n仅建议在常规卸载失效时使用。\n是否继续？"):
+                dlg.destroy()
+                if self.var_backup_enabled.get():
+                    self._backup_user_data(self.var_backup_path.get())
+                self._perform_force_clean() 
+
+        ttk.Button(f2, text="执行强力清理", style="Stop.TButton", command=run_force_clean).pack(fill="x", pady=(10, 0))
+
+        # [关键优化 2] 计算位置并显示
+        # 此时窗口是隐藏的，update_idletasks 会在后台计算好所有控件的大小
+        dlg.update_idletasks() 
+        
+        # 计算居中坐标
+        w = dlg.winfo_reqwidth()
+        h = dlg.winfo_reqheight()
+        x = self.root.winfo_x() + (self.root.winfo_width() // 2) - (w // 2)
+        y = self.root.winfo_y() + (self.root.winfo_height() // 2) - (h // 2)
+        
+        # 设置位置
+        dlg.geometry(f"+{x}+{y}")
+        
+        # [关键优化 3] 一切就绪，瞬间显示窗口
+        dlg.deiconify() 
+        dlg.focus_force()
+
+    def _run_uninstall_sequence(self, cmd_str):
+        self._launch_blocking_window(cmd_str, "OpenClaw Uninstaller", is_simple_cmd=True)
+        self.log(self.txt_system, "卸载流程结束，正在重新检测系统状态...", "INFO")
+        time.sleep(2)
+        self._async_detect_sequence() 
+
+    def _perform_force_clean(self):
+        self.log(self.txt_system, "正在执行强力清理...", "CMD")
+        
+        commands = [
+            "npm uninstall -g openclaw",
+            "npm uninstall -g openclaw-cn",
+            "pnpm remove -g openclaw",
+            "pnpm remove -g openclaw-cn"
+        ]
+        
+        try:
+            appdata = os.getenv('APPDATA') 
+            if appdata:
+                npm_path = os.path.join(appdata, "npm")
+                files_to_check = ["openclaw", "openclaw.cmd", "openclaw.ps1", "openclaw-cn", "openclaw-cn.cmd", "openclaw-cn.ps1"]
+                for f in files_to_check:
+                    target = os.path.join(npm_path, f)
+                    if os.path.exists(target):
+                        try:
+                            os.remove(target)
+                            self.log(self.txt_system, f"已删除残留文件: {target}", "SUCCESS")
+                        except: pass
+        except: pass
+
+        def _clean_thread():
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            for cmd in commands:
+                try:
+                    subprocess.run(["cmd", "/c", cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=subprocess.CREATE_NO_WINDOW, startupinfo=startupinfo)
+                except: pass
+            
+            self.log(self.txt_system, "清理指令已执行。", "SUCCESS")
+            messagebox.showinfo("完成", "强力清理已完成，正在刷新状态...")
+            self._async_detect_sequence()
+
+        threading.Thread(target=_clean_thread, daemon=True).start()
 
     # ==========================================
     #  核心: 安装向导
@@ -444,24 +670,22 @@ class UniversalLauncher:
         try:
             self.log(self.txt_system, f"正在启动外部窗口: {title}", "DEBUG")
             
-            CREATE_NEW_CONSOLE = 0x00000010
-            final_cmd = []
+            final_cmd_str = ""
             
             if is_simple_cmd:
-                final_cmd = ["cmd", "/c", f"{cmd_str} & pause"]
+                final_cmd_str = f'start /wait "{title}" cmd /c "{cmd_str} & pause"'
             else:
                 is_powershell = "powershell" in cmd_str.lower()
                 if is_powershell:
                     clean_cmd = cmd_str.replace("powershell -Command", "").replace("powershell", "").strip().strip('"')
-                    final_cmd = ["powershell", "-NoExit", "-Command", clean_cmd]
+                    final_cmd_str = f'start /wait "{title}" powershell -NoExit -Command "{clean_cmd}"'
                 else:
-                    final_cmd = ["cmd", "/c", f"{cmd_str} & pause"]
+                    final_cmd_str = f'start /wait "{title}" cmd /c "{cmd_str} & pause"'
 
             subprocess.run(
-                final_cmd, 
+                final_cmd_str, 
                 check=False, 
-                shell=False, 
-                creationflags=CREATE_NEW_CONSOLE,
+                shell=True, 
                 cwd=self._safe_cwd()
             )
             
@@ -542,7 +766,7 @@ class UniversalLauncher:
             update_cmd = self._get_cmd_by_method(self.cli_cmd, method, is_update=True)
             if update_cmd:
                 self.log(self.txt_system, "正在执行原地更新...", "INFO")
-                threading.Thread(target=self._run_install_sequence, args=(update_cmd, self.cli_cmd), daemon=True).start()
+                threading.Thread(target=self._run_update_sequence, args=(update_cmd, self.cli_cmd), daemon=True).start()
                 return
         self._show_update_dialog_manual(None)
 
@@ -562,7 +786,7 @@ class UniversalLauncher:
             self.config["install_info"] = {"core": target_core, "method": method}
             save_config(self.config)
             cmd = self._get_cmd_by_method(target_core, method, is_update=True)
-            threading.Thread(target=self._run_install_sequence, args=(cmd, target_core), daemon=True).start()
+            threading.Thread(target=self._run_update_sequence, args=(cmd, target_core), daemon=True).start()
         def create_row(parent, btn_text, btn_cmd, desc_text, is_primary=False):
             f = ttk.Frame(parent)
             f.pack(fill="x", pady=3)
@@ -628,6 +852,10 @@ class UniversalLauncher:
         style.configure("Update.TButton", foreground="#6f42c1", font=f_bold, padding=3)
         style.configure("Tray.TCheckbutton", font=self.f_small)
         style.configure("TLabelframe.Label", font=self.f_small, foreground="#0078d4")
+        
+        # [核心修复] 指定 Checkbutton 字体颜色为灰色(#555555)和字号(10)
+        style.configure("Backup.TCheckbutton", font=("Microsoft YaHei UI", 10), foreground="#555555")
+        
         style.configure("Title.TLabel", font=self.f_title)
         style.configure("Emoji.TLabel", font=self.f_emoji)
         style.configure("StatusGreen.TLabel", foreground="#2f9e44", font=self.f_small)
@@ -636,46 +864,72 @@ class UniversalLauncher:
 
     def setup_dashboard(self, parent):
         self.var_minimize_tray = tk.BooleanVar(value=self.config.get("minimize_to_tray", False))
+        
         main_container = ttk.Frame(parent, padding=15)
         main_container.pack(fill="x", expand=True)
+
+        # --- Top Bar (顶部栏) ---
         top_bar = ttk.Frame(main_container)
         top_bar.pack(fill="x", pady=(0, 10))
+
         ver_frame = ttk.Frame(top_bar)
         ver_frame.pack(side="left", anchor="center")
+        
+        # 1. 版本号显示
         ttk.Label(ver_frame, text="当前版本: ", font=("Microsoft YaHei UI", 10, "bold"), foreground="#555555").pack(side="left")
         ttk.Label(ver_frame, textvariable=self.version_number_var, font=("Microsoft YaHei UI", 10, "bold"), foreground="#555555").pack(side="left")
         self.lbl_ver_type = ttk.Label(ver_frame, textvariable=self.version_type_var, font=("Microsoft YaHei UI", 10, "bold"), foreground="#0078d4")
         self.lbl_ver_type.pack(side="left", padx=(5,0))
-        ttk.Button(ver_frame, text="↻ 检查更新", style="Update.TButton", takefocus=0, command=self.check_for_updates).pack(side="left", padx=(10, 0))
+        
+        # 2. 功能按钮区 (统一逻辑：先创建对象，再布局)
+        
+        # [按钮 A] 检查更新 (使用符号 ↻)
+        self.btn_update = ttk.Button(ver_frame, text="↻ 检查更新", style="Update.TButton", takefocus=0, command=self.check_for_updates)
+        self.btn_update.pack(side="left", padx=(10, 0))
+        
+        # [按钮 B] 卸载 (使用符号 ✕ 代替 Emoji，彻底解决间距问题)
+        self.btn_uninstall = ttk.Button(ver_frame, text="✕ 卸载", style="Stop.TButton", takefocus=0, state="disabled", command=self._show_uninstall_dialog)
+        self.btn_uninstall.pack(side="left", padx=(5, 0))
+
+        # 3. 右侧托盘选项
         right_area = ttk.Frame(top_bar)
         right_area.pack(side="right", anchor="center")
         ttk.Checkbutton(right_area, text="最小化到托盘", variable=self.var_minimize_tray, command=self.save_tray_setting, style="Tray.TCheckbutton", takefocus=0).pack(side="left")
+
+        # --- Content Box (状态与控制区) ---
         content_box = ttk.Frame(main_container)
         content_box.pack(fill="x", expand=True)
         content_box.columnconfigure(0, weight=1) 
+        
+        # 左侧状态面板
         status_panel = ttk.Frame(content_box)
         status_panel.grid(row=0, column=0, sticky="nsew") 
         status_panel.rowconfigure(0, weight=1)
         status_panel.rowconfigure(1, weight=1)
         status_panel.columnconfigure(3, weight=1) 
+        
+        # Gateway 状态
         ttk.Label(status_panel, text="🧠", style="Emoji.TLabel").grid(row=0, column=0, padx=(5, 10))
         ttk.Label(status_panel, text="Gateway", style="Title.TLabel").grid(row=0, column=1, sticky="w", padx=(0, 20))
         self.light_gw = StatusLight(status_panel, size=14) 
         self.light_gw.grid(row=0, column=2, padx=(0, 10))
         self.lbl_gw_state = ttk.Label(status_panel, textvariable=self.status_gw_text, style="StatusGray.TLabel")
         self.lbl_gw_state.grid(row=0, column=3, sticky="w")
+
+        # Node 状态
         ttk.Label(status_panel, text="💻", style="Emoji.TLabel").grid(row=1, column=0, padx=(5, 10))
         ttk.Label(status_panel, text="Node", style="Title.TLabel").grid(row=1, column=1, sticky="w", padx=(0, 20))
         self.light_node = StatusLight(status_panel, size=14)
         self.light_node.grid(row=1, column=2, padx=(0, 10))
         self.lbl_node_state = ttk.Label(status_panel, textvariable=self.status_node_text, style="StatusGray.TLabel")
         self.lbl_node_state.grid(row=1, column=3, sticky="w")
-        
+
+        # 右侧按钮面板
         btn_panel = ttk.Frame(content_box)
         btn_panel.grid(row=0, column=1, sticky="ne", padx=(15, 0))
         FIXED_BTN_WIDTH = 20
         
-        # [修改点] 初始化按钮时，将其 state 设为 disabled
+        # 核心功能按钮 (默认禁用)
         self.btn_start = ttk.Button(btn_panel, text="🚀  一键启动", style="Accent.TButton", width=FIXED_BTN_WIDTH, takefocus=0, state="disabled", command=self.start_services)
         self.btn_start.pack(fill="x", pady=(0, 5))
         
