@@ -424,11 +424,10 @@ class UniversalLauncher:
         if not self.cli_cmd: return
 
         dlg = tk.Toplevel(self.root)
-        # 1. 立即隐藏，幕后操作
-        dlg.withdraw()
+        dlg.withdraw() # 1. 立即隐藏，幕后布局
         
         dlg.title("卸载 OpenClaw")
-        dlg.minsize(500, 0)
+        dlg.minsize(500, 0) # [Memory] 宽度保持 500
 
         container = ttk.Frame(dlg, padding=20)
         container.pack(fill="both", expand=True)
@@ -459,17 +458,14 @@ class UniversalLauncher:
         btn_browse = ttk.Button(row1, text="📂 修改路径", width=10, command=choose_dir)
         btn_browse.pack(side="right")
 
-        # [关键修复] 直接设置初始 wraplength=400
-        # 窗口最小宽度450 - 内边距约40 = 410，设为400确保文字直接在内存里换好行
-        # 这样显示出来时就是排好版的，不会“跳动”
+        # 初始排版
         lbl_path = ttk.Label(f_backup, textvariable=self.var_backup_path, 
                              foreground="#555555", font=("Microsoft YaHei UI", 9),
-                             wraplength=400) 
+                             wraplength=450) 
         lbl_path.pack(anchor="w", pady=(5, 0), fill="x")
 
-        # 依然保留动态调整，以防用户手动拉宽窗口，但初始状态不再依赖它
         def on_label_resize(event):
-            if event.width > 10: # 避免初始化时的噪点数据
+            if event.width > 10:
                 lbl_path.config(wraplength=event.width - 10)
         
         lbl_path.bind("<Configure>", on_label_resize)
@@ -479,7 +475,7 @@ class UniversalLauncher:
         f1.pack(fill="x", pady=10)
         
         lbl1 = ttk.Label(f1, text=f"运行 {self.cli_cmd} uninstall\n保留部分配置文件。", 
-                         foreground="#555", justify="left", font=("Microsoft YaHei UI", 10))
+                         foreground="#555555", justify="left", font=("Microsoft YaHei UI", 10))
         lbl1.pack(anchor="w")
         
         def run_standard_uninstall():
@@ -498,8 +494,9 @@ class UniversalLauncher:
         f2 = ttk.Labelframe(container, text="强力清理 (Force Clean)", padding=10)
         f2.pack(fill="x", pady=5)
         
+        # [修改] 颜色改为 #555555 (灰色)，不再是红色的 #d32f2f
         lbl2 = ttk.Label(f2, text="强制移除 NPM/PNPM 全局包及残留文件。\n适用于常规卸载失败的情况。", 
-                         foreground="#d32f2f", justify="left", font=("Microsoft YaHei UI", 10))
+                         foreground="#555555", justify="left", font=("Microsoft YaHei UI", 10))
         lbl2.pack(anchor="w")
 
         def run_force_clean():
@@ -511,7 +508,7 @@ class UniversalLauncher:
 
         ttk.Button(f2, text="执行强力清理", style="Stop.TButton", command=run_force_clean).pack(fill="x", pady=(10, 0))
 
-        # 2. 强制全量刷新 (比 update_idletasks 更彻底，渲染字体)
+        # 2. 强制全量刷新 (渲染字体和布局)
         dlg.update()
         
         # 3. 计算居中
@@ -521,7 +518,7 @@ class UniversalLauncher:
         y = self.root.winfo_y() + (self.root.winfo_height() // 2) - (h // 2)
         dlg.geometry(f"+{x}+{y}")
         
-        # 4. 瞬间显示 (Ready to show)
+        # 4. 瞬间显示
         dlg.deiconify()
         dlg.focus_force()
 
