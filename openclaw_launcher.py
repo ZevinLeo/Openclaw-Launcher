@@ -416,23 +416,18 @@ class UniversalLauncher:
         if not self.cli_cmd: return
 
         dlg = tk.Toplevel(self.root)
-        
-        # [关键优化 1] 创建后立即隐藏，防止用户看到计算过程中的闪烁
+        # 1. 立即隐藏，幕后操作
         dlg.withdraw()
         
         dlg.title("卸载 OpenClaw")
-        
-        # 移除固定大小，使用 minsize + 自适应
-        dlg.minsize(450, 0)
+        dlg.minsize(500, 0)
 
         container = ttk.Frame(dlg, padding=20)
         container.pack(fill="both", expand=True)
 
         ttk.Label(container, text="请选择卸载方式", font=("Microsoft YaHei UI", 12, "bold")).pack(pady=(0, 15))
 
-        # ===============================================
-        # 模块 1: 备份配置
-        # ===============================================
+        # --- 模块 1: 备份配置 ---
         f_backup = ttk.Labelframe(container, text="备份配置", padding=10)
         f_backup.pack(fill="x", pady=5)
 
@@ -456,18 +451,22 @@ class UniversalLauncher:
         btn_browse = ttk.Button(row1, text="📂 修改...", width=8, command=choose_dir)
         btn_browse.pack(side="right")
 
+        # [关键修复] 直接设置初始 wraplength=400
+        # 窗口最小宽度450 - 内边距约40 = 410，设为400确保文字直接在内存里换好行
+        # 这样显示出来时就是排好版的，不会“跳动”
         lbl_path = ttk.Label(f_backup, textvariable=self.var_backup_path, 
-                             foreground="#555555", font=("Microsoft YaHei UI", 9))
+                             foreground="#555555", font=("Microsoft YaHei UI", 9),
+                             wraplength=400) 
         lbl_path.pack(anchor="w", pady=(5, 0), fill="x")
 
+        # 依然保留动态调整，以防用户手动拉宽窗口，但初始状态不再依赖它
         def on_label_resize(event):
-            lbl_path.config(wraplength=event.width - 10)
+            if event.width > 10: # 避免初始化时的噪点数据
+                lbl_path.config(wraplength=event.width - 10)
         
         lbl_path.bind("<Configure>", on_label_resize)
 
-        # ===============================================
-        # 模块 2: 常规卸载
-        # ===============================================
+        # --- 模块 2: 常规卸载 ---
         f1 = ttk.Labelframe(container, text="常规卸载 (推荐)", padding=10)
         f1.pack(fill="x", pady=10)
         
@@ -487,9 +486,7 @@ class UniversalLauncher:
 
         ttk.Button(f1, text="执行常规卸载", command=run_standard_uninstall).pack(fill="x", pady=(10, 0))
 
-        # ===============================================
-        # 模块 3: 强力清理
-        # ===============================================
+        # --- 模块 3: 强力清理 ---
         f2 = ttk.Labelframe(container, text="强力清理 (Force Clean)", padding=10)
         f2.pack(fill="x", pady=5)
         
@@ -506,21 +503,18 @@ class UniversalLauncher:
 
         ttk.Button(f2, text="执行强力清理", style="Stop.TButton", command=run_force_clean).pack(fill="x", pady=(10, 0))
 
-        # [关键优化 2] 计算位置并显示
-        # 此时窗口是隐藏的，update_idletasks 会在后台计算好所有控件的大小
-        dlg.update_idletasks() 
+        # 2. 强制全量刷新 (比 update_idletasks 更彻底，渲染字体)
+        dlg.update()
         
-        # 计算居中坐标
+        # 3. 计算居中
         w = dlg.winfo_reqwidth()
         h = dlg.winfo_reqheight()
         x = self.root.winfo_x() + (self.root.winfo_width() // 2) - (w // 2)
         y = self.root.winfo_y() + (self.root.winfo_height() // 2) - (h // 2)
-        
-        # 设置位置
         dlg.geometry(f"+{x}+{y}")
         
-        # [关键优化 3] 一切就绪，瞬间显示窗口
-        dlg.deiconify() 
+        # 4. 瞬间显示 (Ready to show)
+        dlg.deiconify()
         dlg.focus_force()
 
     def _run_uninstall_sequence(self, cmd_str):
