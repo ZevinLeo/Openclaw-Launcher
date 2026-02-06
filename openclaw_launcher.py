@@ -448,7 +448,7 @@ class UniversalLauncher:
             path = filedialog.askdirectory(initialdir=self.var_backup_path.get(), title="选择备份保存位置")
             if path: self.var_backup_path.set(path)
 
-        btn_browse = ttk.Button(row1, text="📂 修改路径", width=8, command=choose_dir)
+        btn_browse = ttk.Button(row1, text="📂 修改路径", width=10, command=choose_dir)
         btn_browse.pack(side="right")
 
         # [关键修复] 直接设置初始 wraplength=400
