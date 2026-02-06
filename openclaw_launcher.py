@@ -283,19 +283,34 @@ class UniversalLauncher:
 
     def _update_ui_after_detect(self, cmd_found, ver_num):
         self.version_number_var.set(ver_num)
-        if cmd_found == "openclaw-cn":
-            self.cli_cmd = "openclaw-cn"
-            self.version_type_var.set("(OpenClaw-CN)")
-            self.lbl_ver_type.config(foreground="#ff4500") 
-            self.root.title(f"OpenClaw-CN 启动器 ({ver_num})")
-            self.log(self.txt_system, f"核心就绪: openclaw-cn (版本 {ver_num})", "SUCCESS")
-        elif cmd_found == "openclaw":
-            self.cli_cmd = "openclaw"
-            self.version_type_var.set("(OpenClaw)")
-            self.lbl_ver_type.config(foreground="#00b7c3")
-            self.root.title(f"OpenClaw 启动器 ({ver_num})")
-            self.log(self.txt_system, f"核心就绪: openclaw (版本 {ver_num})", "SUCCESS")
+        
+        # [核心修改] 根据是否检测到核心，启用或禁用按钮
+        if cmd_found:
+            # 1. 启用按钮
+            self.btn_start.config(state="normal")
+            self.btn_stop.config(state="normal")
+            self.btn_web.config(state="normal")
+            
+            # 2. 设置界面信息
+            if cmd_found == "openclaw-cn":
+                self.cli_cmd = "openclaw-cn"
+                self.version_type_var.set("(OpenClaw-CN)")
+                self.lbl_ver_type.config(foreground="#ff4500") 
+                self.root.title(f"OpenClaw-CN 启动器 ({ver_num})")
+                self.log(self.txt_system, f"核心就绪: openclaw-cn (版本 {ver_num})", "SUCCESS")
+            elif cmd_found == "openclaw":
+                self.cli_cmd = "openclaw"
+                self.version_type_var.set("(OpenClaw)")
+                self.lbl_ver_type.config(foreground="#00b7c3")
+                self.root.title(f"OpenClaw 启动器 ({ver_num})")
+                self.log(self.txt_system, f"核心就绪: openclaw (版本 {ver_num})", "SUCCESS")
         else:
+            # 1. 禁用按钮
+            self.btn_start.config(state="disabled")
+            self.btn_stop.config(state="disabled")
+            self.btn_web.config(state="disabled")
+            
+            # 2. 设置界面信息
             self.cli_cmd = None
             self.version_type_var.set("(未检测到核心)")
             self.lbl_ver_type.config(foreground="red")
@@ -327,22 +342,20 @@ class UniversalLauncher:
         return False
 
     # ==========================================
-    #  核心: 安装向导 (Style优化：50/50 均分 + 粗体)
+    #  核心: 安装向导
     # ==========================================
     def _show_install_wizard(self):
         if hasattr(self, '_wizard_window') and self._wizard_window.winfo_exists():
             self._wizard_window.lift()
             return
 
-        # 配置自定义 Notebook 样式
         style = ttk.Style()
-        # width=36 大约能在 650px 宽的窗口中实现 50/50 均分 (取决于DPI)
         style.configure("Wizard.TNotebook.Tab", font=("Microsoft YaHei UI", 10, "bold"), width=36, padding=[5, 5], anchor="center")
 
         wizard = tk.Toplevel(self.root)
         self._wizard_window = wizard 
         wizard.title("OpenClaw 安装向导")
-        wizard.geometry("650x500") 
+        wizard.geometry("650x450") 
         
         x = self.root.winfo_x() + (self.root.winfo_width() // 2) - 325
         y = self.root.winfo_y() + (self.root.winfo_height() // 2) - 225
@@ -370,11 +383,9 @@ class UniversalLauncher:
             save_config(self.config)
             threading.Thread(target=self._run_install_sequence, args=(cmd, core), daemon=True).start()
 
-        # 应用自定义样式
         notebook = ttk.Notebook(container, style="Wizard.TNotebook")
         notebook.pack(fill="both", expand=True, pady=10)
 
-        # UI 辅助函数
         def create_row(parent, btn_text, btn_cmd, desc_text, is_primary=False):
             f = ttk.Frame(parent)
             f.pack(fill="x", pady=3)
@@ -659,12 +670,20 @@ class UniversalLauncher:
         self.light_node.grid(row=1, column=2, padx=(0, 10))
         self.lbl_node_state = ttk.Label(status_panel, textvariable=self.status_node_text, style="StatusGray.TLabel")
         self.lbl_node_state.grid(row=1, column=3, sticky="w")
+        
         btn_panel = ttk.Frame(content_box)
         btn_panel.grid(row=0, column=1, sticky="ne", padx=(15, 0))
         FIXED_BTN_WIDTH = 20
-        ttk.Button(btn_panel, text="🚀  一键启动", style="Accent.TButton", width=FIXED_BTN_WIDTH, takefocus=0, command=self.start_services).pack(fill="x", pady=(0, 5))
-        ttk.Button(btn_panel, text="🛑  全部停止", style="Stop.TButton", width=FIXED_BTN_WIDTH, takefocus=0, command=lambda: threading.Thread(target=self.stop_all).start()).pack(fill="x", pady=(0, 5))
-        ttk.Button(btn_panel, text="🌐  Web 控制台", style="Link.TButton", width=FIXED_BTN_WIDTH, takefocus=0, command=self.open_web_ui).pack(fill="x")
+        
+        # [修改点] 初始化按钮时，将其 state 设为 disabled
+        self.btn_start = ttk.Button(btn_panel, text="🚀  一键启动", style="Accent.TButton", width=FIXED_BTN_WIDTH, takefocus=0, state="disabled", command=self.start_services)
+        self.btn_start.pack(fill="x", pady=(0, 5))
+        
+        self.btn_stop = ttk.Button(btn_panel, text="🛑  全部停止", style="Stop.TButton", width=FIXED_BTN_WIDTH, takefocus=0, state="disabled", command=lambda: threading.Thread(target=self.stop_all).start())
+        self.btn_stop.pack(fill="x", pady=(0, 5))
+        
+        self.btn_web = ttk.Button(btn_panel, text="🌐  Web 控制台", style="Link.TButton", width=FIXED_BTN_WIDTH, takefocus=0, state="disabled", command=self.open_web_ui)
+        self.btn_web.pack(fill="x")
 
     def save_tray_setting(self):
         self.config["minimize_to_tray"] = self.var_minimize_tray.get()
