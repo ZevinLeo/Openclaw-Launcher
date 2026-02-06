@@ -591,8 +591,7 @@ class UniversalLauncher:
         wizard.title("OpenClaw 安装向导")
         
         # [修改 2] 移除固定 geometry，改用 minsize
-        # 宽度给 650 比较合适，因为 Tab 里的按钮和说明文字较长
-        wizard.minsize(650, 0)
+        wizard.minsize(580, 0)
         
         container = ttk.Frame(wizard, padding=20)
         container.pack(fill="both", expand=True)
