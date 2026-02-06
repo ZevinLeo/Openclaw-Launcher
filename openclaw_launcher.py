@@ -573,32 +573,37 @@ class UniversalLauncher:
     #  核心: 安装向导
     # ==========================================
     def _show_install_wizard(self):
+        # 防止重复打开
         if hasattr(self, '_wizard_window') and self._wizard_window.winfo_exists():
             self._wizard_window.lift()
             return
 
         style = ttk.Style()
+        # 设置 Tab 标签样式，保证文字居中和粗体
         style.configure("Wizard.TNotebook.Tab", font=("Microsoft YaHei UI", 10, "bold"), width=36, padding=[5, 5], anchor="center")
 
         wizard = tk.Toplevel(self.root)
         self._wizard_window = wizard 
-        wizard.title("OpenClaw 安装向导")
-        wizard.geometry("650x450") 
         
-        x = self.root.winfo_x() + (self.root.winfo_width() // 2) - 325
-        y = self.root.winfo_y() + (self.root.winfo_height() // 2) - 225
-        wizard.geometry(f"+{x}+{y}")
-        wizard.lift() 
-        wizard.focus_force()
+        # [修改 1] 立即隐藏，防止闪烁
+        wizard.withdraw()
+        
+        wizard.title("OpenClaw 安装向导")
+        
+        # [修改 2] 移除固定 geometry，改用 minsize
+        # 宽度给 650 比较合适，因为 Tab 里的按钮和说明文字较长
+        wizard.minsize(650, 0)
         
         container = ttk.Frame(wizard, padding=20)
         container.pack(fill="both", expand=True)
 
+        # --- 头部提示区 ---
         header_frame = ttk.Frame(container)
         header_frame.pack(fill="x", pady=(0, 15))
         ttk.Label(header_frame, text="⚠️ 未检测到核心程序", font=("Microsoft YaHei UI", 14, "bold"), foreground="black").pack(anchor="w")
         ttk.Label(header_frame, text="要运行此启动器，您需要先安装 OpenClaw 核心服务。", font=("Microsoft YaHei UI", 10), foreground="#666").pack(anchor="w", pady=(5,0))
 
+        # --- 安装逻辑闭包 ---
         def _do_install(core, method):
             if not self._check_node_installed():
                 if messagebox.askyesno("缺少必要依赖", "⚠️ 检测到系统未安装 Node.js 环境。\n\nOpenClaw 必须依赖 Node.js 才能运行。\n是否立即前往官网下载安装？"):
@@ -611,13 +616,16 @@ class UniversalLauncher:
             save_config(self.config)
             threading.Thread(target=self._run_install_sequence, args=(cmd, core), daemon=True).start()
 
+        # --- Tab 分页区 ---
         notebook = ttk.Notebook(container, style="Wizard.TNotebook")
         notebook.pack(fill="both", expand=True, pady=10)
 
+        # 辅助函数：创建安装选项行
         def create_row(parent, btn_text, btn_cmd, desc_text, is_primary=False):
             f = ttk.Frame(parent)
             f.pack(fill="x", pady=3)
             style = "Accent.TButton" if is_primary else "TButton"
+            # 统一按钮宽度
             btn = ttk.Button(f, text=btn_text, command=btn_cmd, style=style, width=24)
             btn.pack(side="left", padx=(5, 10))
             color = "#2f9e44" if is_primary else "#666666"
@@ -625,7 +633,7 @@ class UniversalLauncher:
             lbl = ttk.Label(f, text=desc_text, foreground=color, font=("Microsoft YaHei UI", 9, weight))
             lbl.pack(side="left", anchor="center")
 
-        # --- Tab 1 ---
+        # >>> Tab 1: 原版 <<<
         tab_org = ttk.Frame(notebook, padding=15)
         notebook.add(tab_org, text=" OpenClaw (原版) ")
         ttk.Label(tab_org, text="OpenClaw Official", font=("Microsoft YaHei UI", 12, "bold"), foreground="#0078d4").pack(anchor="w")
@@ -636,7 +644,7 @@ class UniversalLauncher:
         create_row(tab_org, "NPM 全局安装", lambda: _do_install("openclaw", "npm"), "npm i -g openclaw")
         create_row(tab_org, "PNPM 全局安装", lambda: _do_install("openclaw", "pnpm"), "pnpm add -g openclaw")
 
-        # --- Tab 2 ---
+        # >>> Tab 2: 汉化版 <<<
         tab_cn = ttk.Frame(notebook, padding=15)
         notebook.add(tab_cn, text=" OpenClaw-CN (汉化版) ")
         ttk.Label(tab_cn, text="OpenClaw CN Community", font=("Microsoft YaHei UI", 12, "bold"), foreground="#ff4500").pack(anchor="w")
@@ -647,6 +655,20 @@ class UniversalLauncher:
         create_row(tab_cn, "NPM 全局安装", lambda: _do_install("openclaw-cn", "npm"), "npm install -g openclaw-cn@latest")
         create_row(tab_cn, "PNPM 全局安装", lambda: _do_install("openclaw-cn", "pnpm"), "pnpm add -g openclaw-cn@latest")
 
+        # [修改 3] 强制计算布局并居中
+        wizard.update() 
+        
+        w = wizard.winfo_reqwidth()
+        h = wizard.winfo_reqheight()
+        x = self.root.winfo_x() + (self.root.winfo_width() // 2) - (w // 2)
+        y = self.root.winfo_y() + (self.root.winfo_height() // 2) - (h // 2)
+        
+        wizard.geometry(f"+{x}+{y}")
+        
+        # [修改 4] 显示窗口
+        wizard.lift()
+        wizard.deiconify() 
+        wizard.focus_force()
     # ==========================================
     #  核心: 安装序列执行器
     # ==========================================
