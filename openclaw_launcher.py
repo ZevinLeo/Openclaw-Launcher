@@ -1,4 +1,5 @@
 from tkinter import filedialog  # [新增] 用于弹出文件夹选择框
+import shutil  # [新增] 用于检测 wt.exe 是否存在
 import tkinter as tk
 from tkinter import ttk, messagebox
 import subprocess
@@ -668,30 +669,73 @@ class UniversalLauncher:
         self._async_detect_sequence()
 
     def _launch_blocking_window(self, cmd_str, title, is_simple_cmd=False):
+        """
+        v1.33 智能分流启动：
+        1. 自动检测是否安装 Windows Terminal (WT)。
+        2. 自动识别指令类型 (CMD vs PowerShell)。
+        3. 自动调用 WT 对应的配置文件 (Command Prompt vs Windows PowerShell)。
+        """
         try:
-            self.log(self.txt_system, f"正在启动外部窗口: {title}", "DEBUG")
+            self.log(self.txt_system, f"正在启动外部任务: {title}", "DEBUG")
             
-            final_cmd_str = ""
+            wt_path = shutil.which("wt")
             
-            if is_simple_cmd:
-                final_cmd_str = f'start /wait "{title}" cmd /c "{cmd_str} & pause"'
-            else:
-                is_powershell = "powershell" in cmd_str.lower()
-                if is_powershell:
-                    clean_cmd = cmd_str.replace("powershell -Command", "").replace("powershell", "").strip().strip('"')
-                    final_cmd_str = f'start /wait "{title}" powershell -NoExit -Command "{clean_cmd}"'
-                else:
-                    final_cmd_str = f'start /wait "{title}" cmd /c "{cmd_str} & pause"'
+            # [关键逻辑] 智能识别命令类型
+            is_powershell = "powershell" in cmd_str.lower()
+            
+            # 清洗命令字符串，提取核心执行部分
+            clean_cmd = cmd_str
+            if is_powershell:
+                 clean_cmd = cmd_str.replace("powershell -Command", "").replace("powershell", "").strip().strip('"')
+            elif "cmd /c" in cmd_str.lower():
+                 clean_cmd = cmd_str.replace("cmd /c", "").strip().strip('"')
 
-            subprocess.run(
-                final_cmd_str, 
-                check=False, 
-                shell=True, 
-                cwd=self._safe_cwd()
-            )
+            # ====================================================
+            # 方案 A: Windows Terminal (智能匹配 Profile)
+            # ====================================================
+            if wt_path:
+                # 根据类型决定调用哪个配置文件
+                if is_powershell:
+                    profile_name = "Windows PowerShell" # 对应蓝色图标
+                    shell_exec = ["powershell", "-NoExit", "-Command", clean_cmd]
+                    self.log(self.txt_system, "调用 WT -> PowerShell 配置文件", "INFO")
+                else:
+                    profile_name = "Command Prompt"     # 对应黑色图标
+                    # cmd /k 表示执行完不关闭窗口
+                    shell_exec = ["cmd", "/k", f"{clean_cmd}"]
+                    self.log(self.txt_system, "调用 WT -> Command Prompt 配置文件", "INFO")
+
+                # 构造 WT 参数
+                # -p 指定配置文件名
+                final_args = ["wt", "-w", "0", "new-tab", "--title", title, "-p", profile_name] + shell_exec
+                
+                subprocess.Popen(final_args, shell=True, cwd=self._safe_cwd())
+                
+                # 模态弹窗卡住主进程，等待用户在 WT 中操作完成
+                messagebox.showinfo(
+                    "正在运行", 
+                    f"任务 [{title}] 正在 Windows Terminal ({profile_name}) 中运行...\n\n请等待代码跑完后，\n再点击下方的【确定】继续下一步。"
+                )
+                
+                self.log(self.txt_system, f"任务已确认完成: {title}", "SUCCESS")
+                return
+
+            # ====================================================
+            # 方案 B: 原生窗口回退 (没有 WT 时)
+            # ====================================================
+            self.log(self.txt_system, "未检测到 WT，回退至原生窗口...", "INFO")
+            
+            if is_powershell:
+                # 强制用蓝色 PS 窗口
+                legacy_cmd = f'start /wait "{title}" powershell -NoExit -Command "{clean_cmd}"'
+            else:
+                # 强制用黑色 CMD 窗口
+                legacy_cmd = f'start /wait "{title}" cmd /c "{clean_cmd} & pause"'
+                
+            subprocess.run(legacy_cmd, shell=True, cwd=self._safe_cwd())
             
             self.log(self.txt_system, f"任务窗口已关闭: {title}", "INFO")
-            
+
         except Exception as e:
             self.log(self.txt_system, f"启动窗口失败: {e}", "ERROR")
             messagebox.showerror("执行错误", f"无法启动安装窗口: {e}")
