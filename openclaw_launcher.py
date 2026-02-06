@@ -1040,16 +1040,24 @@ class UniversalLauncher:
             webbrowser.open(target_url)
 
     def _start_node_internal(self):
+        # [新增] 逻辑防抖：检查 Node 是否已在运行
         if self.proc_node and self.proc_node.poll() is None:
-             self.log(self.txt_system, "Node 进程已在运行。", "INFO")
+             self.log(self.txt_system, "⚠️ Node 进程已在后台运行，跳过重复启动。", "INFO")
+             # 确保按钮状态正确（如果是一键启动触发的，这里应该已经禁用了，但为了保险）
+             self.btn_start.config(state="disabled") 
              return
+
         self.log(self.txt_system, f"正在启动 Node ({self.cli_cmd})...", "INFO")
         self.status_node_style = "StatusYellow.TLabel"
         self.status_node_text.set("启动中...")
         self.update_ui_status() 
+        
         if not self.cli_cmd: return
+        
         node_cmd = f'{self.cli_cmd} node run --host 127.0.0.1 --port 18789 --display-name "MyWinPC"'
         self.run_process_in_background(node_cmd, "proc_node", self.txt_system, None)
+        
+        # 启动检测线程
         threading.Thread(target=self._wait_for_node_ready, daemon=True).start()
 
     def _wait_for_node_ready(self):
@@ -1069,6 +1077,14 @@ class UniversalLauncher:
              messagebox.showinfo("请稍候", "正在后台检测版本，请等待 2-3 秒后再试。")
              return
 
+        # [新增] 1. 物理防抖：点击后立即禁用按钮
+        self.btn_start.config(state="disabled")
+        
+        # [新增] 2. 逻辑防抖：检查 Gateway 是否已在运行
+        if self.proc_gateway and self.proc_gateway.poll() is None:
+            self.log(self.txt_system, "⚠️ Gateway 进程已在运行中，忽略重复启动请求。", "INFO")
+            return
+
         try:
             if self.check_gateway_http():
                 self.log(self.txt_system, "Gateway 服务检测已存活。", "INFO")
@@ -1084,12 +1100,20 @@ class UniversalLauncher:
                 self.status_gw_style = "StatusYellow.TLabel"
                 self.status_gw_text.set("启动中...")
                 self.update_ui_status()
+                
+                # 启动 Gateway
                 self.run_process_in_background(cmd, "proc_gateway", self.txt_system, None)
 
                 def wait_for_gateway():
                     self.log(self.txt_system, "正在等待端口 18789 响应...", "DEBUG")
                     for i in range(30):
                         time.sleep(0.5)
+                        # 再次检查进程是否意外挂掉
+                        if self.proc_gateway and self.proc_gateway.poll() is not None:
+                             self.log(self.txt_system, "❌ Gateway 进程意外终止，启动失败。", "ERROR")
+                             self.root.after(0, lambda: self.btn_start.config(state="normal")) # 失败恢复按钮
+                             return
+
                         if self.check_gateway_http():
                             self.log(self.txt_system, ">>> Gateway 启动成功 <<<", "SUCCESS")
                             self.gateway_ready = True
@@ -1099,27 +1123,40 @@ class UniversalLauncher:
                             self.root.after(50, self._start_node_internal)
                             return
                         if i % 10 == 0: self.log(self.txt_system, f"等待中 ({i/2}s)...", "DEBUG")
+                    
                     self.log(self.txt_system, "❌ Gateway 启动超时！请检查 18789 端口是否被占用。", "ERROR")
                     messagebox.showwarning("启动超时", "Gateway 服务启动超时。\n请检查日志是否有错误信息，或手动运行 openclaw gateway 尝试。")
+                    self.root.after(0, lambda: self.btn_start.config(state="normal")) # 超时恢复按钮
+
                 threading.Thread(target=wait_for_gateway, daemon=True).start()
         except Exception as e:
             err_msg = f"启动过程发生异常:\n{str(e)}\n{traceback.format_exc()}"
             self.log(self.txt_system, err_msg, "ERROR")
             messagebox.showerror("严重错误", err_msg)
+            self.btn_start.config(state="normal") # 异常恢复按钮
 
     def stop_all(self, logging=True):
         if logging: self.log(self.txt_system, "正在停止所有服务...", "INFO")
         kill_flags = subprocess.CREATE_NO_WINDOW
+        
+        # 杀进程逻辑...
         if self.proc_gateway: subprocess.run(["cmd", "/c", f"taskkill /F /T /PID {self.proc_gateway.pid}"], shell=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=kill_flags)
         if self.proc_node: subprocess.run(["cmd", "/c", f"taskkill /F /T /PID {self.proc_node.pid}"], shell=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=kill_flags)
         subprocess.run(["cmd", "/c", "taskkill /F /IM node.exe"], shell=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=kill_flags)
+        
         self.gateway_ready = False
         self.node_connected_flag = False
+        
+        # UI 重置
         self.status_gw_style = "StatusGray.TLabel"
         self.status_gw_text.set("未运行")
         self.status_node_style = "StatusGray.TLabel"
         self.status_node_text.set("未运行")
         self.update_ui_status()
+        
+        # [新增] 停止后，重新启用“一键启动”按钮
+        self.btn_start.config(state="normal")
+        
         if logging: self.log(self.txt_system, "已发送停止指令。", "INFO")
 
     def check_status_once(self, manual=False):
@@ -1180,7 +1217,19 @@ class UniversalLauncher:
             self.update_ui_status()
             time.sleep(1.5 if not self.node_connected_flag else 3)
 
+# ==========================================
+#  程序入口 (增加单例检测)
+# ==========================================
 if __name__ == "__main__":
+    # [新增] 全局互斥锁，防止重复启动
+    mutex_name = "Global\\OpenClaw_Launcher_Singleton_Lock_v1"
+    mutex = ctypes.windll.kernel32.CreateMutexW(None, False, mutex_name)
+    
+    # 检查是否已存在 (ERROR_ALREADY_EXISTS = 183)
+    if ctypes.windll.kernel32.GetLastError() == 183:
+        ctypes.windll.user32.MessageBoxW(0, "OpenClaw 启动器已经在运行中！\n\n请检查任务栏或右下角托盘图标 (🦞)。", "提示", 0x40 | 0x1)
+        sys.exit(0)
+
     try:
         root = tk.Tk()
         app = UniversalLauncher(root)
