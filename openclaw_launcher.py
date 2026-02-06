@@ -1,7 +1,5 @@
-from tkinter import filedialog  # [新增] 用于弹出文件夹选择框
-import shutil  # [新增] 用于检测 wt.exe 是否存在
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 import subprocess
 import threading
 import time
@@ -169,6 +167,9 @@ class UniversalLauncher:
         self.node_connected_flag = False
         self.is_quitting = False 
         self.programmatic_action = False
+        
+        # [注意] 仅用于 Node 连接的后台抓取，不用于 WebUI
+        self.internal_token_cache = None 
 
         self.f_title = ("Microsoft YaHei UI", 12, "bold") 
         self.f_body = ("Microsoft YaHei UI", 11)          
@@ -245,7 +246,6 @@ class UniversalLauncher:
     #  核心: 备份功能
     # ==========================================
     def _backup_user_data(self, target_root=None):
-        """ 备份数据到指定目录或默认桌面目录 """
         try:
             home = os.path.expanduser("~") 
             source_root = os.path.join(home, ".openclaw")
@@ -254,26 +254,18 @@ class UniversalLauncher:
                 self.log(self.txt_system, "未找到 .openclaw 文件夹，跳过备份。", "INFO")
                 return
 
-            # 1. 确定备份根目录
+            # 默认桌面
             if not target_root:
-                # [修改] 默认路径改为桌面 (Desktop)
                 target_root = os.path.join(home, "Desktop", "OpenClaw_Backups")
             
-            # 2. 创建带时间戳的子文件夹
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             dest_dir = os.path.join(target_root, f"Backup_{timestamp}")
             
             os.makedirs(dest_dir, exist_ok=True)
             self.log(self.txt_system, f"正在创建备份: {dest_dir}", "CMD")
 
-            # 扩展了备份列表，包含 cron, credentials, devices
             items_to_backup = [
-                "openclaw.json", 
-                "agents", 
-                "workspace", 
-                "cron", 
-                "credentials", 
-                "devices"
+                "openclaw.json", "agents", "workspace", "cron", "credentials", "devices"
             ]
             
             backed_up_count = 0
@@ -406,43 +398,43 @@ class UniversalLauncher:
     #  核心: 更新序列执行器
     # ==========================================
     def _run_update_sequence(self, update_cmd, core_name):
-        self.log(self.txt_system, ">>> 开始执行自动化更新队列...", "CMD")
-        self.log(self.txt_system, f"[1/3] 正在更新 {core_name}...", "INFO")
-        self._launch_blocking_window(update_cmd, f"{core_name} Updater")
-        self.log(self.txt_system, "[2/3] 正在运行诊断程序 (Doctor)...", "INFO")
-        doctor_cmd = f"{core_name} doctor"
-        self._launch_blocking_window(doctor_cmd, f"{core_name} Doctor", is_simple_cmd=True)
-        self.log(self.txt_system, "[3/3] 正在验证服务状态...", "INFO")
-        status_cmd = f"{core_name} status"
-        self._launch_blocking_window(status_cmd, f"{core_name} Status", is_simple_cmd=True)
-        self.log(self.txt_system, "更新流程完成，正在刷新状态...", "SUCCESS")
-        time.sleep(2)
-        self._async_detect_sequence()
+        try:
+            self.log(self.txt_system, ">>> 开始执行自动化更新队列...", "CMD")
+            self.log(self.txt_system, f"[1/3] 正在更新 {core_name}...", "INFO")
+            self._launch_blocking_window(update_cmd, f"{core_name} Updater")
+            self.log(self.txt_system, "[2/3] 正在运行诊断程序 (Doctor)...", "INFO")
+            doctor_cmd = f"{core_name} doctor"
+            self._launch_blocking_window(doctor_cmd, f"{core_name} Doctor", is_simple_cmd=True)
+            self.log(self.txt_system, "[3/3] 正在验证服务状态...", "INFO")
+            status_cmd = f"{core_name} status"
+            self._launch_blocking_window(status_cmd, f"{core_name} Status", is_simple_cmd=True)
+            self.log(self.txt_system, "更新流程完成，正在刷新状态...", "SUCCESS")
+            time.sleep(2)
+            self._async_detect_sequence()
+        except Exception as e:
+            self.log(self.txt_system, f"更新流程异常中止: {e}", "ERROR")
 
     # ==========================================
-    #  核心: 卸载/清理逻辑 (UI修正)
+    #  核心: 卸载/清理逻辑
     # ==========================================
     def _show_uninstall_dialog(self):
         if not self.cli_cmd: return
 
         dlg = tk.Toplevel(self.root)
-        dlg.withdraw() # 1. 立即隐藏，幕后布局
+        dlg.withdraw() 
         
         dlg.title("卸载 OpenClaw")
-        dlg.minsize(500, 0) # 宽度保持 500
+        dlg.minsize(500, 0) 
 
         container = ttk.Frame(dlg, padding=20)
         container.pack(fill="both", expand=True)
 
         ttk.Label(container, text="请选择卸载方式", font=("Microsoft YaHei UI", 12, "bold")).pack(pady=(0, 15))
 
-        # --- 模块 1: 备份配置 ---
         f_backup = ttk.Labelframe(container, text="备份配置", padding=10)
         f_backup.pack(fill="x", pady=5)
 
-        # [修改] 默认路径改为桌面 (Desktop)
         default_backup_path = os.path.join(os.path.expanduser("~"), "Desktop", "OpenClaw_Backups")
-        
         self.var_backup_enabled = tk.BooleanVar(value=True)
         self.var_backup_path = tk.StringVar(value=default_backup_path)
 
@@ -462,7 +454,6 @@ class UniversalLauncher:
         btn_browse = ttk.Button(row1, text="📂 修改路径", width=10, command=choose_dir)
         btn_browse.pack(side="right")
 
-        # 初始排版
         lbl_path = ttk.Label(f_backup, textvariable=self.var_backup_path, 
                              foreground="#555555", font=("Microsoft YaHei UI", 9),
                              wraplength=450) 
@@ -474,12 +465,11 @@ class UniversalLauncher:
         
         lbl_path.bind("<Configure>", on_label_resize)
 
-        # --- 模块 2: 常规卸载 ---
         f1 = ttk.Labelframe(container, text="常规卸载 (推荐)", padding=10)
         f1.pack(fill="x", pady=10)
         
         lbl1 = ttk.Label(f1, text=f"运行 {self.cli_cmd} uninstall\n保留部分配置文件。", 
-                         foreground="#555", justify="left", font=("Microsoft YaHei UI", 10))
+                         foreground="#555555", justify="left", font=("Microsoft YaHei UI", 10))
         lbl1.pack(anchor="w")
         
         def run_standard_uninstall():
@@ -494,7 +484,6 @@ class UniversalLauncher:
 
         ttk.Button(f1, text="执行常规卸载", command=run_standard_uninstall).pack(fill="x", pady=(10, 0))
 
-        # --- 模块 3: 强力清理 ---
         f2 = ttk.Labelframe(container, text="强力清理 (Force Clean)", padding=10)
         f2.pack(fill="x", pady=5)
         
@@ -511,25 +500,24 @@ class UniversalLauncher:
 
         ttk.Button(f2, text="执行强力清理", style="Stop.TButton", command=run_force_clean).pack(fill="x", pady=(10, 0))
 
-        # 2. 强制全量刷新 (渲染字体和布局)
         dlg.update()
         
-        # 3. 计算居中
         w = dlg.winfo_reqwidth()
         h = dlg.winfo_reqheight()
         x = self.root.winfo_x() + (self.root.winfo_width() // 2) - (w // 2)
         y = self.root.winfo_y() + (self.root.winfo_height() // 2) - (h // 2)
         dlg.geometry(f"+{x}+{y}")
         
-        # 4. 瞬间显示
         dlg.deiconify()
         dlg.focus_force()
 
     def _run_uninstall_sequence(self, cmd_str):
-        self._launch_blocking_window(cmd_str, "OpenClaw Uninstaller", is_simple_cmd=True)
-        self.log(self.txt_system, "卸载流程结束，正在重新检测系统状态...", "INFO")
-        time.sleep(2)
-        self._async_detect_sequence() 
+        try:
+            self._launch_blocking_window(cmd_str, "OpenClaw Uninstaller", is_simple_cmd=True)
+            self.log(self.txt_system, "卸载流程结束，正在重新检测系统状态...", "INFO")
+            time.sleep(2)
+            self._async_detect_sequence() 
+        except Exception: pass
 
     def _perform_force_clean(self):
         self.log(self.txt_system, "正在执行强力清理...", "CMD")
@@ -573,35 +561,29 @@ class UniversalLauncher:
     #  核心: 安装向导
     # ==========================================
     def _show_install_wizard(self):
-        # 防止重复打开
         if hasattr(self, '_wizard_window') and self._wizard_window.winfo_exists():
             self._wizard_window.lift()
             return
 
         style = ttk.Style()
-        # [修改 1] Tab 宽度从 36 改为 24，更紧凑
         style.configure("Wizard.TNotebook.Tab", font=("Microsoft YaHei UI", 10, "bold"), width=24, padding=[5, 5], anchor="center")
 
         wizard = tk.Toplevel(self.root)
         self._wizard_window = wizard 
         
-        wizard.withdraw() # 立即隐藏
+        wizard.withdraw() 
         
         wizard.title("OpenClaw 安装向导")
-        
-        # [修改 2] 窗口最小宽度从 650 改为 550
         wizard.minsize(550, 0)
         
         container = ttk.Frame(wizard, padding=20)
         container.pack(fill="both", expand=True)
 
-        # --- 头部提示区 ---
         header_frame = ttk.Frame(container)
         header_frame.pack(fill="x", pady=(0, 15))
         ttk.Label(header_frame, text="⚠️ 未检测到核心程序", font=("Microsoft YaHei UI", 14, "bold"), foreground="black").pack(anchor="w")
         ttk.Label(header_frame, text="要运行此启动器，您需要先安装 OpenClaw 核心服务。", font=("Microsoft YaHei UI", 10), foreground="#666").pack(anchor="w", pady=(5,0))
 
-        # --- 安装逻辑 ---
         def _do_install(core, method):
             if not self._check_node_installed():
                 if messagebox.askyesno("缺少必要依赖", "⚠️ 检测到系统未安装 Node.js 环境。\n\nOpenClaw 必须依赖 Node.js 才能运行。\n是否立即前往官网下载安装？"):
@@ -614,11 +596,9 @@ class UniversalLauncher:
             save_config(self.config)
             threading.Thread(target=self._run_install_sequence, args=(cmd, core), daemon=True).start()
 
-        # --- Tab 分页区 ---
         notebook = ttk.Notebook(container, style="Wizard.TNotebook")
         notebook.pack(fill="both", expand=True, pady=10)
 
-        # 辅助函数
         def create_row(parent, btn_text, btn_cmd, desc_text, is_primary=False):
             f = ttk.Frame(parent)
             f.pack(fill="x", pady=3)
@@ -630,123 +610,96 @@ class UniversalLauncher:
             lbl = ttk.Label(f, text=desc_text, foreground=color, font=("Microsoft YaHei UI", 9, weight))
             lbl.pack(side="left", anchor="center")
 
-        # >>> Tab 1: 原版 <<<
         tab_org = ttk.Frame(notebook, padding=15)
         notebook.add(tab_org, text=" OpenClaw (原版) ")
         ttk.Label(tab_org, text="OpenClaw Official", font=("Microsoft YaHei UI", 12, "bold"), foreground="#0078d4").pack(anchor="w")
         ttk.Label(tab_org, text="推荐。更新最快，功能最新。", font=("Microsoft YaHei UI", 10), foreground="#555").pack(anchor="w", pady=(5, 10))
-        
         create_row(tab_org, "Windows (PowerShell)", lambda: _do_install("openclaw", "script_ps"), "Windows 首选推荐 (iwr)", True)
         create_row(tab_org, "Linux/Mac (Bash)", lambda: _do_install("openclaw", "script_bash"), "curl ... | bash")
         create_row(tab_org, "NPM 全局安装", lambda: _do_install("openclaw", "npm"), "npm i -g openclaw")
         create_row(tab_org, "PNPM 全局安装", lambda: _do_install("openclaw", "pnpm"), "pnpm add -g openclaw")
 
-        # >>> Tab 2: 汉化版 <<<
         tab_cn = ttk.Frame(notebook, padding=15)
         notebook.add(tab_cn, text=" OpenClaw-CN (汉化版) ")
         ttk.Label(tab_cn, text="OpenClaw CN Community", font=("Microsoft YaHei UI", 12, "bold"), foreground="#ff4500").pack(anchor="w")
         ttk.Label(tab_cn, text="社区维护。全中文界面，优化国内网络。", font=("Microsoft YaHei UI", 10), foreground="#555").pack(anchor="w", pady=(5, 10))
-        
         create_row(tab_cn, "Windows (PowerShell)", lambda: _do_install("openclaw-cn", "script_ps"), "Windows 首选推荐 (iwr)", True)
         create_row(tab_cn, "Linux/Mac (Bash)", lambda: _do_install("openclaw-cn", "script_bash"), "curl ... | bash")
         create_row(tab_cn, "NPM 全局安装", lambda: _do_install("openclaw-cn", "npm"), "npm install -g openclaw-cn@latest")
         create_row(tab_cn, "PNPM 全局安装", lambda: _do_install("openclaw-cn", "pnpm"), "pnpm add -g openclaw-cn@latest")
 
-        # 计算布局
         wizard.update() 
-        
         w = wizard.winfo_reqwidth()
         h = wizard.winfo_reqheight()
         x = self.root.winfo_x() + (self.root.winfo_width() // 2) - (w // 2)
         y = self.root.winfo_y() + (self.root.winfo_height() // 2) - (h // 2)
-        
         wizard.geometry(f"+{x}+{y}")
-        
         wizard.deiconify() 
         wizard.focus_force()
-    # ==========================================
-    #  核心: 安装序列执行器
-    # ==========================================
-    def _run_install_sequence(self, install_cmd, core_name):
-        self.log(self.txt_system, ">>> 开始执行自动化安装队列...", "CMD")
-        
-        self.log(self.txt_system, "[1/3] 正在运行安装程序...", "INFO")
-        self._launch_blocking_window(install_cmd, f"{core_name} Installer")
-        
-        self.log(self.txt_system, "[2/3] 正在运行初始化 (setup)...", "INFO")
-        setup_cmd = f"{core_name} setup"
-        self._launch_blocking_window(setup_cmd, f"{core_name} Setup", is_simple_cmd=True)
-        
-        self.log(self.txt_system, "[3/3] 正在运行首次配置 (onboard)...", "INFO")
-        onboard_cmd = f"{core_name} onboard"
-        self._launch_blocking_window(onboard_cmd, f"{core_name} Onboarding", is_simple_cmd=True)
 
-        self.log(self.txt_system, "自动化队列执行完毕，正在刷新状态...", "SUCCESS")
-        time.sleep(2)
-        self._async_detect_sequence()
+    def _run_install_sequence(self, install_cmd, core_name):
+        try:
+            self.log(self.txt_system, ">>> 开始执行自动化安装队列...", "CMD")
+            self.log(self.txt_system, "[1/3] 正在运行安装程序...", "INFO")
+            self._launch_blocking_window(install_cmd, f"{core_name} Installer")
+            
+            self.log(self.txt_system, "[2/3] 正在运行初始化 (setup)...", "INFO")
+            setup_cmd = f"{core_name} setup"
+            self._launch_blocking_window(setup_cmd, f"{core_name} Setup", is_simple_cmd=True)
+            
+            self.log(self.txt_system, "[3/3] 正在运行首次配置 (onboard)...", "INFO")
+            onboard_cmd = f"{core_name} onboard"
+            self._launch_blocking_window(onboard_cmd, f"{core_name} Onboarding", is_simple_cmd=True)
+
+            self.log(self.txt_system, "自动化队列执行完毕，正在刷新状态...", "SUCCESS")
+            time.sleep(2)
+            self._async_detect_sequence()
+        except Exception as e:
+            self.log(self.txt_system, f"安装流程异常中断: {e}", "ERROR")
 
     def _launch_blocking_window(self, cmd_str, title, is_simple_cmd=False):
-        """
-        v1.33 智能分流启动：
-        1. 自动检测是否安装 Windows Terminal (WT)。
-        2. 自动识别指令类型 (CMD vs PowerShell)。
-        3. 自动调用 WT 对应的配置文件 (Command Prompt vs Windows PowerShell)。
-        """
         try:
             self.log(self.txt_system, f"正在启动外部任务: {title}", "DEBUG")
             
             wt_path = shutil.which("wt")
-            
-            # [关键逻辑] 智能识别命令类型
             is_powershell = "powershell" in cmd_str.lower()
             
-            # 清洗命令字符串，提取核心执行部分
             clean_cmd = cmd_str
             if is_powershell:
                  clean_cmd = cmd_str.replace("powershell -Command", "").replace("powershell", "").strip().strip('"')
             elif "cmd /c" in cmd_str.lower():
                  clean_cmd = cmd_str.replace("cmd /c", "").strip().strip('"')
 
-            # ====================================================
-            # 方案 A: Windows Terminal (智能匹配 Profile)
-            # ====================================================
             if wt_path:
-                # 根据类型决定调用哪个配置文件
                 if is_powershell:
-                    profile_name = "Windows PowerShell" # 对应蓝色图标
+                    profile_name = "Windows PowerShell"
                     shell_exec = ["powershell", "-NoExit", "-Command", clean_cmd]
-                    self.log(self.txt_system, "调用 WT -> PowerShell 配置文件", "INFO")
+                    self.log(self.txt_system, "调用 WT -> PowerShell", "INFO")
                 else:
-                    profile_name = "Command Prompt"     # 对应黑色图标
-                    # cmd /k 表示执行完不关闭窗口
+                    profile_name = "Command Prompt"
                     shell_exec = ["cmd", "/k", f"{clean_cmd}"]
-                    self.log(self.txt_system, "调用 WT -> Command Prompt 配置文件", "INFO")
+                    self.log(self.txt_system, "调用 WT -> Command Prompt", "INFO")
 
-                # 构造 WT 参数
-                # -p 指定配置文件名
                 final_args = ["wt", "-w", "0", "new-tab", "--title", title, "-p", profile_name] + shell_exec
                 
                 subprocess.Popen(final_args, shell=True, cwd=self._safe_cwd())
                 
-                # 模态弹窗卡住主进程，等待用户在 WT 中操作完成
-                messagebox.showinfo(
-                    "正在运行", 
-                    f"任务 [{title}] 正在 Windows Terminal ({profile_name}) 中运行...\n\n请等待代码跑完后，\n再点击下方的【确定】继续下一步。"
+                is_success = messagebox.askyesno(
+                    "任务结果确认", 
+                    f"任务 [{title}] 正在 Windows Terminal 中运行...\n\n请关注窗口内的执行结果。\n1. 等待代码执行完毕。\n2. 如果没有报错，请点击【是(Y)】继续。\n3. 如果出现红色报错，请点击【否(N)】中止流程。"
                 )
                 
-                self.log(self.txt_system, f"任务已确认完成: {title}", "SUCCESS")
+                if not is_success:
+                    raise Exception(f"用户标记任务 [{title}] 执行失败。")
+
+                self.log(self.txt_system, f"任务已确认成功: {title}", "SUCCESS")
                 return
 
-            # ====================================================
-            # 方案 B: 原生窗口回退 (没有 WT 时)
-            # ====================================================
             self.log(self.txt_system, "未检测到 WT，回退至原生窗口...", "INFO")
             
             if is_powershell:
-                # 强制用蓝色 PS 窗口
                 legacy_cmd = f'start /wait "{title}" powershell -NoExit -Command "{clean_cmd}"'
             else:
-                # 强制用黑色 CMD 窗口
                 legacy_cmd = f'start /wait "{title}" cmd /c "{clean_cmd} & pause"'
                 
             subprocess.run(legacy_cmd, shell=True, cwd=self._safe_cwd())
@@ -754,8 +707,8 @@ class UniversalLauncher:
             self.log(self.txt_system, f"任务窗口已关闭: {title}", "INFO")
 
         except Exception as e:
-            self.log(self.txt_system, f"启动窗口失败: {e}", "ERROR")
-            messagebox.showerror("执行错误", f"无法启动安装窗口: {e}")
+            self.log(self.txt_system, f"❌ 流程中断: {e}", "ERROR")
+            raise e 
 
     # ==========================================
     #  核心: 日志与更新
@@ -775,12 +728,10 @@ class UniversalLauncher:
         self.root.after(0, _update)
 
     def check_for_updates(self):
-        # [逻辑修正] 如果核心未安装，点击此按钮应重新召唤“安装向导”，而不是“更新窗口”
         if not self.cli_cmd:
             self._show_install_wizard()
             return
             
-        # 只有在已安装的情况下，才去联网检查版本
         threading.Thread(target=self._check_remote_version_thread, daemon=True).start()
 
     def _check_remote_version_thread(self):
@@ -803,16 +754,13 @@ class UniversalLauncher:
             
             remote_ver = process.stdout.strip()
             
-            # 失败情况 1: npm 未安装或网络不通
             if not remote_ver or process.returncode != 0:
                 self.log(self.txt_system, "获取云端版本失败 (可能未安装 npm)。", "ERROR")
-                # [修改] 失败也走 _ask_force_update -> _trigger_auto_update，尝试自动更新
                 self.root.after(0, lambda: self._ask_force_update(local_ver, "未知"))
                 return
             
             self.log(self.txt_system, f"云端最新版本: {remote_ver}", "INFO")
             
-            # 正常流程
             if remote_ver != local_ver:
                 self.root.after(0, lambda: self._ask_update_confirm(local_ver, remote_ver))
             else:
@@ -824,7 +772,6 @@ class UniversalLauncher:
             
         except Exception as e:
             self.log(self.txt_system, f"版本检查错误: {e}", "ERROR")
-            # [修改] 发生异常时，也优先询问是否强制更新，而不是直接弹手动窗口
             self.root.after(0, lambda: self._ask_force_update(local_ver, "错误"))
 
     def _ask_update_confirm(self, local, remote):
@@ -843,28 +790,14 @@ class UniversalLauncher:
             self._trigger_auto_update()
 
     def _trigger_auto_update(self):
-        """ 
-        智能更新分发器：
-        有配置 -> 自动执行，不弹窗。
-        无配置 -> 弹窗让用户选。
-        """
-        # 1. 尝试读取已保存的安装信息
         install_info = self.config.get("install_info")
-        
-        # 校验：配置存在，且核心类型 (openclaw/openclaw-cn) 与当前运行的一致
         if install_info and install_info.get("core") == self.cli_cmd:
             method = install_info.get("method")
             self.log(self.txt_system, f"检测到历史安装配置 [{method}]，正在准备自动更新...", "INFO")
-            
-            # 生成对应的更新命令
             update_cmd = self._get_cmd_by_method(self.cli_cmd, method, is_update=True)
-            
             if update_cmd:
-                # 核心逻辑：直接启动更新线程，【彻底跳过】手动选择窗口
                 threading.Thread(target=self._run_update_sequence, args=(update_cmd, self.cli_cmd), daemon=True).start()
                 return
-
-        # 2. 只有在真的不知道怎么更新时，才弹窗询问
         self.log(self.txt_system, "未找到历史安装配置，请手动选择更新方式。", "INFO")
         self._show_update_dialog_manual(None)
 
@@ -951,7 +884,6 @@ class UniversalLauncher:
         style.configure("Tray.TCheckbutton", font=self.f_small)
         style.configure("TLabelframe.Label", font=self.f_small, foreground="#0078d4")
         
-        # [核心修复] 指定 Checkbutton 字体颜色为灰色(#555555)和字号(10)
         style.configure("Backup.TCheckbutton", font=("Microsoft YaHei UI", 10), foreground="#555555")
         
         style.configure("Title.TLabel", font=self.f_title)
@@ -966,47 +898,39 @@ class UniversalLauncher:
         main_container = ttk.Frame(parent, padding=15)
         main_container.pack(fill="x", expand=True)
 
-        # --- Top Bar (顶部栏) ---
+        # Top Bar
         top_bar = ttk.Frame(main_container)
         top_bar.pack(fill="x", pady=(0, 10))
 
         ver_frame = ttk.Frame(top_bar)
         ver_frame.pack(side="left", anchor="center")
         
-        # 1. 版本号显示
         ttk.Label(ver_frame, text="当前版本: ", font=("Microsoft YaHei UI", 10, "bold"), foreground="#555555").pack(side="left")
         ttk.Label(ver_frame, textvariable=self.version_number_var, font=("Microsoft YaHei UI", 10, "bold"), foreground="#555555").pack(side="left")
         self.lbl_ver_type = ttk.Label(ver_frame, textvariable=self.version_type_var, font=("Microsoft YaHei UI", 10, "bold"), foreground="#0078d4")
         self.lbl_ver_type.pack(side="left", padx=(5,0))
         
-        # 2. 功能按钮区 (统一逻辑：先创建对象，再布局)
-        
-        # [按钮 A] 检查更新 (使用符号 ↻)
         self.btn_update = ttk.Button(ver_frame, text="↻ 检查更新", style="Update.TButton", takefocus=0, command=self.check_for_updates)
         self.btn_update.pack(side="left", padx=(10, 0))
         
-        # [按钮 B] 卸载 (使用符号 ✕ 代替 Emoji，彻底解决间距问题)
         self.btn_uninstall = ttk.Button(ver_frame, text="✕ 卸载", style="Stop.TButton", takefocus=0, state="disabled", command=self._show_uninstall_dialog)
         self.btn_uninstall.pack(side="left", padx=(5, 0))
 
-        # 3. 右侧托盘选项
         right_area = ttk.Frame(top_bar)
         right_area.pack(side="right", anchor="center")
         ttk.Checkbutton(right_area, text="最小化到托盘", variable=self.var_minimize_tray, command=self.save_tray_setting, style="Tray.TCheckbutton", takefocus=0).pack(side="left")
 
-        # --- Content Box (状态与控制区) ---
+        # Content Box
         content_box = ttk.Frame(main_container)
         content_box.pack(fill="x", expand=True)
         content_box.columnconfigure(0, weight=1) 
         
-        # 左侧状态面板
         status_panel = ttk.Frame(content_box)
         status_panel.grid(row=0, column=0, sticky="nsew") 
         status_panel.rowconfigure(0, weight=1)
         status_panel.rowconfigure(1, weight=1)
         status_panel.columnconfigure(3, weight=1) 
         
-        # Gateway 状态
         ttk.Label(status_panel, text="🧠", style="Emoji.TLabel").grid(row=0, column=0, padx=(5, 10))
         ttk.Label(status_panel, text="Gateway", style="Title.TLabel").grid(row=0, column=1, sticky="w", padx=(0, 20))
         self.light_gw = StatusLight(status_panel, size=14) 
@@ -1014,7 +938,6 @@ class UniversalLauncher:
         self.lbl_gw_state = ttk.Label(status_panel, textvariable=self.status_gw_text, style="StatusGray.TLabel")
         self.lbl_gw_state.grid(row=0, column=3, sticky="w")
 
-        # Node 状态
         ttk.Label(status_panel, text="💻", style="Emoji.TLabel").grid(row=1, column=0, padx=(5, 10))
         ttk.Label(status_panel, text="Node", style="Title.TLabel").grid(row=1, column=1, sticky="w", padx=(0, 20))
         self.light_node = StatusLight(status_panel, size=14)
@@ -1022,12 +945,10 @@ class UniversalLauncher:
         self.lbl_node_state = ttk.Label(status_panel, textvariable=self.status_node_text, style="StatusGray.TLabel")
         self.lbl_node_state.grid(row=1, column=3, sticky="w")
 
-        # 右侧按钮面板
         btn_panel = ttk.Frame(content_box)
         btn_panel.grid(row=0, column=1, sticky="ne", padx=(15, 0))
         FIXED_BTN_WIDTH = 20
         
-        # 核心功能按钮 (默认禁用)
         self.btn_start = ttk.Button(btn_panel, text="🚀  一键启动", style="Accent.TButton", width=FIXED_BTN_WIDTH, takefocus=0, state="disabled", command=self.start_services)
         self.btn_start.pack(fill="x", pady=(0, 5))
         
@@ -1112,37 +1033,40 @@ class UniversalLauncher:
         except: return False
 
     def open_web_ui(self):
+        # 1. 基础检查
         if not self.cli_cmd:
             messagebox.showwarning("未就绪", "核心程序尚未加载，请稍候。")
             return
         if not self.gateway_ready:
             messagebox.showwarning("服务未启动", "Gateway 服务尚未运行，无法打开控制台。\n请先点击 '一键启动'。")
             return
-        if not self.node_connected_flag:
-            messagebox.showwarning("节点未连接", "Node 尚未连接到 Gateway。\n请等待 Node 状态变为 '已连接' 后再试。")
-            return
 
-        if not self.has_opened_dashboard:
-            self.log(self.txt_system, f"首次打开: 正在执行 {self.cli_cmd} dashboard ...", "INFO")
-            def _launch_dashboard_cmd():
-                try:
-                    startupinfo = subprocess.STARTUPINFO()
-                    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-                    subprocess.run(["cmd", "/c", f"{self.cli_cmd} dashboard"], shell=False, creationflags=subprocess.CREATE_NO_WINDOW, startupinfo=startupinfo, cwd=self._safe_cwd())
-                except Exception as e:
-                    self.log(self.txt_system, f"打开控制台失败: {e}", "ERROR")
-            threading.Thread(target=_launch_dashboard_cmd, daemon=True).start()
-            self.has_opened_dashboard = True
-        else:
-            target_url = "http://127.0.0.1:18789/"
-            self.log(self.txt_system, f"打开 WebUI: {target_url}", "INFO")
-            webbrowser.open(target_url)
+        self.log(self.txt_system, "正在启动 Web 控制台 (自动授权)...", "INFO")
+        
+        # 2. 直接在后台调用 dashboard 命令
+        # 该命令会自动寻找 Token 并唤起默认浏览器，无需我们干预
+        def _launch_dashboard_hidden():
+            try:
+                # 配置彻底隐藏窗口 (No Window)
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                
+                subprocess.run(
+                    ["cmd", "/c", f"{self.cli_cmd} dashboard"], 
+                    shell=False, 
+                    creationflags=subprocess.CREATE_NO_WINDOW, # 关键：禁止弹出黑框
+                    startupinfo=startupinfo, 
+                    cwd=self._safe_cwd()
+                )
+            except Exception as e:
+                self.log(self.txt_system, f"启动失败: {e}", "ERROR")
+
+        # 使用线程异步执行，防止主界面卡顿
+        threading.Thread(target=_launch_dashboard_hidden, daemon=True).start()
 
     def _start_node_internal(self):
-        # [新增] 逻辑防抖：检查 Node 是否已在运行
         if self.proc_node and self.proc_node.poll() is None:
              self.log(self.txt_system, "⚠️ Node 进程已在后台运行，跳过重复启动。", "INFO")
-             # 确保按钮状态正确（如果是一键启动触发的，这里应该已经禁用了，但为了保险）
              self.btn_start.config(state="disabled") 
              return
 
@@ -1154,9 +1078,11 @@ class UniversalLauncher:
         if not self.cli_cmd: return
         
         node_cmd = f'{self.cli_cmd} node run --host 127.0.0.1 --port 18789 --display-name "MyWinPC"'
-        self.run_process_in_background(node_cmd, "proc_node", self.txt_system, None)
+        if self.internal_token_cache:
+            node_cmd = f'{node_cmd} --token {self.internal_token_cache}'
+            self.log(self.txt_system, "已自动注入认证 Token (仅限 Node)。", "DEBUG")
         
-        # 启动检测线程
+        self.run_process_in_background(node_cmd, "proc_node", self.txt_system, None)
         threading.Thread(target=self._wait_for_node_ready, daemon=True).start()
 
     def _wait_for_node_ready(self):
@@ -1176,13 +1102,17 @@ class UniversalLauncher:
              messagebox.showinfo("请稍候", "正在后台检测版本，请等待 2-3 秒后再试。")
              return
 
-        # [新增] 1. 物理防抖：点击后立即禁用按钮
         self.btn_start.config(state="disabled")
         
-        # [新增] 2. 逻辑防抖：检查 Gateway 是否已在运行
         if self.proc_gateway and self.proc_gateway.poll() is None:
             self.log(self.txt_system, "⚠️ Gateway 进程已在运行中，忽略重复启动请求。", "INFO")
             return
+
+        def _scan_gateway_log(line):
+            if "device=" in line:
+                match = re.search(r"device=([a-fA-F0-9]+)", line)
+                if match:
+                    self.internal_token_cache = match.group(1)
 
         try:
             if self.check_gateway_http():
@@ -1194,23 +1124,22 @@ class UniversalLauncher:
                 self._start_node_internal()
             else:
                 self.gateway_ready = False
+                self.internal_token_cache = None
                 self.log(self.txt_system, f"准备启动 Gateway ({self.cli_cmd})...", "INFO")
                 cmd = f"{self.cli_cmd} gateway"
                 self.status_gw_style = "StatusYellow.TLabel"
                 self.status_gw_text.set("启动中...")
                 self.update_ui_status()
                 
-                # 启动 Gateway
-                self.run_process_in_background(cmd, "proc_gateway", self.txt_system, None)
+                self.run_process_in_background(cmd, "proc_gateway", self.txt_system, _scan_gateway_log)
 
                 def wait_for_gateway():
                     self.log(self.txt_system, "正在等待端口 18789 响应...", "DEBUG")
                     for i in range(30):
                         time.sleep(0.5)
-                        # 再次检查进程是否意外挂掉
                         if self.proc_gateway and self.proc_gateway.poll() is not None:
                              self.log(self.txt_system, "❌ Gateway 进程意外终止，启动失败。", "ERROR")
-                             self.root.after(0, lambda: self.btn_start.config(state="normal")) # 失败恢复按钮
+                             self.root.after(0, lambda: self.btn_start.config(state="normal")) 
                              return
 
                         if self.check_gateway_http():
@@ -1219,26 +1148,27 @@ class UniversalLauncher:
                             self.status_gw_style = "StatusGreen.TLabel"
                             self.status_gw_text.set("运行中")
                             self.update_ui_status() 
+                            
+                            time.sleep(1) 
                             self.root.after(50, self._start_node_internal)
                             return
                         if i % 10 == 0: self.log(self.txt_system, f"等待中 ({i/2}s)...", "DEBUG")
                     
                     self.log(self.txt_system, "❌ Gateway 启动超时！请检查 18789 端口是否被占用。", "ERROR")
                     messagebox.showwarning("启动超时", "Gateway 服务启动超时。\n请检查日志是否有错误信息，或手动运行 openclaw gateway 尝试。")
-                    self.root.after(0, lambda: self.btn_start.config(state="normal")) # 超时恢复按钮
+                    self.root.after(0, lambda: self.btn_start.config(state="normal")) 
 
                 threading.Thread(target=wait_for_gateway, daemon=True).start()
         except Exception as e:
             err_msg = f"启动过程发生异常:\n{str(e)}\n{traceback.format_exc()}"
             self.log(self.txt_system, err_msg, "ERROR")
             messagebox.showerror("严重错误", err_msg)
-            self.btn_start.config(state="normal") # 异常恢复按钮
+            self.btn_start.config(state="normal") 
 
     def stop_all(self, logging=True):
         if logging: self.log(self.txt_system, "正在停止所有服务...", "INFO")
         kill_flags = subprocess.CREATE_NO_WINDOW
         
-        # 杀进程逻辑...
         if self.proc_gateway: subprocess.run(["cmd", "/c", f"taskkill /F /T /PID {self.proc_gateway.pid}"], shell=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=kill_flags)
         if self.proc_node: subprocess.run(["cmd", "/c", f"taskkill /F /T /PID {self.proc_node.pid}"], shell=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=kill_flags)
         subprocess.run(["cmd", "/c", "taskkill /F /IM node.exe"], shell=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=kill_flags)
@@ -1246,14 +1176,12 @@ class UniversalLauncher:
         self.gateway_ready = False
         self.node_connected_flag = False
         
-        # UI 重置
         self.status_gw_style = "StatusGray.TLabel"
         self.status_gw_text.set("未运行")
         self.status_node_style = "StatusGray.TLabel"
         self.status_node_text.set("未运行")
         self.update_ui_status()
         
-        # [新增] 停止后，重新启用“一键启动”按钮
         self.btn_start.config(state="normal")
         
         if logging: self.log(self.txt_system, "已发送停止指令。", "INFO")
@@ -1316,15 +1244,10 @@ class UniversalLauncher:
             self.update_ui_status()
             time.sleep(1.5 if not self.node_connected_flag else 3)
 
-# ==========================================
-#  程序入口 (增加单例检测)
-# ==========================================
 if __name__ == "__main__":
-    # [新增] 全局互斥锁，防止重复启动
     mutex_name = "Global\\OpenClaw_Launcher_Singleton_Lock_v1"
     mutex = ctypes.windll.kernel32.CreateMutexW(None, False, mutex_name)
     
-    # 检查是否已存在 (ERROR_ALREADY_EXISTS = 183)
     if ctypes.windll.kernel32.GetLastError() == 183:
         ctypes.windll.user32.MessageBoxW(0, "OpenClaw 启动器已经在运行中！\n\n请检查任务栏或右下角托盘图标 (🦞)。", "提示", 0x40 | 0x1)
         sys.exit(0)
