@@ -5,7 +5,7 @@
 无论您是开发者还是普通用户，通过此启动器，无需记忆复杂的 CLI 指令，即可轻松搭建属于您的 AI 算力网络节点。
 
 <div align="center">
-  <img src="images/startup_main.png" alt="OpenClaw 启动后主界面" style="width: 70%; height: auto; border-radius: 20px; margin: 15px 0; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
+  <img src="images/startup_main.png" alt="OpenClaw 启动后主界面" style="width: 70%; height: auto; border-radius: 100px; margin: 15px 0; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
 </div>
 
 ---
