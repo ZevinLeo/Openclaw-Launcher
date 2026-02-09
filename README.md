@@ -84,5 +84,3 @@ pip install sv-ttk pystray pillow
 > **A:** 请确保您使用的是 v1.4 及以上版本。新版本使用了底层的 `CREATE_NEW_CONSOLE` 技术，强制保持窗口可见，确保您能看到安装结果。
 
 ```
-
-```
