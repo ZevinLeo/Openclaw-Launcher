@@ -42,7 +42,7 @@ pip install sv-ttk pystray pillow
 2. 若未检测到核心，会自动弹出 **安装向导**。
 
 <div align="center">
-<img src="images/install_wizard.png" alt="OpenClaw 安装向导界面" style="max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0;" />
+<img src="images/install_wizard.png" alt="OpenClaw 安装向导界面" style="width: 70%; height: auto; border-radius: 8px; margin: 10px 0; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
 </div>
 
 3. **选择版本**：在顶部标签页选择 **OpenClaw (原版)** 或 **OpenClaw-CN (汉化版)**。
@@ -50,7 +50,7 @@ pip install sv-ttk pystray pillow
 5. **等待完成**：程序会自动弹出黑色命令行窗口，请按提示完成操作。窗口关闭后，软件会自动刷新状态，显示安装成功。
 
 <div align="center">
-<img src="images/install_success.png" alt="OpenClaw 安装成功提示" style="max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0;" />
+<img src="images/install_success.png" alt="OpenClaw 安装成功提示" style="width: 70%; height: auto; border-radius: 8px; margin: 10px 0; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
 </div>
 
 ### 3. 日常使用
