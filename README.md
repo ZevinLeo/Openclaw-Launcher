@@ -4,6 +4,10 @@
 
 无论您是开发者还是普通用户，通过此启动器，无需记忆复杂的 CLI 指令，即可轻松搭建属于您的 AI 算力网络节点。
 
+<div align="center">
+<img src="startup_main.png" alt="OpenClaw 启动后主界面" style="max-width: 100%; height: auto; border-radius: 8px; margin: 15px 0;" />
+</div>
+
 ---
 
 ## ✨ 核心功能
@@ -38,9 +42,18 @@ pip install sv-ttk pystray pillow
 
 1. 启动软件，程序会自动检测系统是否安装了 OpenClaw。
 2. 若未检测到核心，会自动弹出 **安装向导**。
+
+<div align="center">
+<img src="install_wizard.png" alt="OpenClaw 安装向导界面" style="max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0;" />
+</div>
+
 3. **选择版本**：在顶部标签页选择 **OpenClaw (原版)** 或 **OpenClaw-CN (汉化版)**。
 4. **点击安装**：推荐点击绿色的 **Windows (PowerShell)** 按钮。
-5. **等待完成**：程序会自动弹出黑色命令行窗口，请按提示完成操作。窗口关闭后，软件会自动刷新状态。
+5. **等待完成**：程序会自动弹出黑色命令行窗口，请按提示完成操作。窗口关闭后，软件会自动刷新状态，显示安装成功。
+
+<div align="center">
+<img src="install_success.png" alt="OpenClaw 安装成功提示" style="max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0;" />
+</div>
 
 ### 3. 日常使用
 
@@ -73,3 +86,5 @@ pip install sv-ttk pystray pillow
 > **A:** 请确保您使用的是 v1.4 及以上版本。新版本使用了底层的 `CREATE_NEW_CONSOLE` 技术，强制保持窗口可见，确保您能看到安装结果。
 
 ---
+
+需要我帮您把这份内容直接保存为 `README.md` 文件格式的纯代码块，方便您一键复制吗？
