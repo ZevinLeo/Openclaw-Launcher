@@ -5,7 +5,7 @@
 无论您是开发者还是普通用户，通过此启动器，无需记忆复杂的 CLI 指令，即可轻松搭建属于您的 AI 算力网络节点。
 
 <div align="center">
-  <img src="images/startup_main.png" alt="OpenClaw 启动后主界面" style="width: 70%; height: auto; border-radius: 8px; margin: 15px 0; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
+  <img src="images/startup_main.png" alt="OpenClaw 启动后主界面" style="width: 70%; height: auto; border-radius: 20px; margin: 15px 0; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
 </div>
 
 ---
@@ -42,7 +42,7 @@ pip install sv-ttk pystray pillow
 2. 若未检测到核心，会自动弹出 **安装向导**。
 
 <div align="center">
-<img src="images/install_wizard.png" alt="OpenClaw 安装向导界面" style="width: 70%; height: auto; border-radius: 8px; margin: 10px 0; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
+<img src="images/install_wizard.png" alt="OpenClaw 安装向导界面" style="width: 70%; height: auto; border-radius: 20px; margin: 10px 0; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
 </div>
 
 3. **选择版本**：在顶部标签页选择 **OpenClaw (原版)** 或 **OpenClaw-CN (汉化版)**。
@@ -50,7 +50,7 @@ pip install sv-ttk pystray pillow
 5. **等待完成**：程序会自动弹出黑色命令行窗口，请按提示完成操作。窗口关闭后，软件会自动刷新状态，显示安装成功。
 
 <div align="center">
-<img src="images/install_success.png" alt="OpenClaw 安装成功提示" style="width: 70%; height: auto; border-radius: 8px; margin: 10px 0; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
+<img src="images/install_success.png" alt="OpenClaw 安装成功提示" style="width: 70%; height: auto; border-radius: 20px; margin: 10px 0; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
 </div>
 
 ### 3. 日常使用
