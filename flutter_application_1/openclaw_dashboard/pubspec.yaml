@@ -30,16 +30,17 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
-  # 图标库 (默认自带)
-  cupertino_icons: ^1.0.2
-
-  # 我们需要用到的库
-  provider: ^6.0.0            # 状态管理
-  path: ^1.8.0                # 路径处理
-  http: ^1.0.0                # 网络请求
-  url_launcher: ^6.2.0        # 打开网页/链接
-  shared_preferences: ^2.2.0  # 保存主题设置
+  
+  # 状态管理
+  provider: ^6.0.0
+  # 路径处理
+  path: ^1.8.0
+  # 网络请求 (Gateway 检测)
+  http: ^1.0.0
+  # 打开链接/文件夹
+  url_launcher: ^6.2.0
+  # 本地存储 (主题设置)
+  shared_preferences: ^2.2.0
 
 dev_dependencies:
   flutter_test:
