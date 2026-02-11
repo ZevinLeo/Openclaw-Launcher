@@ -1,0 +1,98 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.buildlog/
+.history
+.svn/
+
+# IntelliJ / Android Studio
+# 这些是 IDE 的配置文件，通常不需要提交，特别是 workspace.xml
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# Visual Studio Code
+# 如果团队统一用 VS Code 且配置了一致的格式化规则，.vscode 可以不忽略
+# 但通常为了避免个人配置冲突，建议忽略
+.vscode/
+.vscode/launch.json
+.vscode/settings.json
+.vscode/tasks.json
+
+# Flutter/Dart specific
+# 核心构建产物，绝对不能提交
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+
+# Android specific
+# Android 平台的构建产物和本地配置
+android/gradlew
+android/gradlew.bat
+android/local.properties
+android/app/src/main/assets/
+android/**/generated/
+android/**/gradle-wrapper.jar
+.gradle/
+android/.gradle/
+android/build/
+android/app/build/
+# 密钥文件 (非常重要，千万不要提交!)
+*.jks
+*.keystore
+*.key
+key.properties
+
+# iOS specific
+# iOS 平台的构建产物和 CocoaPods 依赖
+ios/*.mode1v3
+ios/*.mode2v3
+ios/*.moved-aside
+ios/*.pbxuser
+ios/*.perspectivev3
+ios/Flutter/App.framework
+ios/Flutter/Flutter.framework
+ios/Flutter/Generated.xcconfig
+ios/Flutter/app.flx
+ios/Flutter/app.zip
+ios/Flutter/flutter_assets/
+ios/Flutter/flutter_export_environment.sh
+ios/ServiceDefinitions.json
+ios/Runner/kGenerated*
+ios/Runner/uGenerated*
+ios/Pods/
+ios/.symlinks/
+ios/Podfile.lock
+# 注意：Podfile.lock 通常建议提交以便锁定版本，
+# 但如果团队中有 M1/Intel 芯片混用导致冲突，有时也会选择忽略。
+# 标准做法是保留 Podfile.lock，这里为了保险起见未注释，根据需要决定。
+
+# macOS specific
+macos/Flutter/ephemeral/
+macos/Pods/
+macos/.symlinks/
+
+# Windows specific
+windows/flutter/ephemeral/
+
+# Linux specific
+linux/flutter/ephemeral/
+
+# Web specific
+lib/generated_plugin_registrant.dart
+
+# Exceptions to above rules.
+!/android/app/src/main/assets/public.xml
+
+# Environment Variables
+# 如果你使用了 .env 文件管理密钥，务必忽略
+.env*
