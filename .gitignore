@@ -59,3 +59,9 @@ Desktop.ini
 
 # Mac (如果你的队友用 Mac)
 .DS_Store
+
+#RUST
+.debug
+build/
+.fingerprint
+deps/

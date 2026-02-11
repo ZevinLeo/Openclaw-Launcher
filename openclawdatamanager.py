@@ -10,7 +10,7 @@ import threading
 import concurrent.futures
 
 # ==========================================
-# 0. 样式配置 (背景障眼法核心)
+# 0. 样式配置
 # ==========================================
 class UIStyleConfig:
     WINDOW_SIZE = "1200x900"
