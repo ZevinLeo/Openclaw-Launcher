@@ -61,7 +61,4 @@ Desktop.ini
 .DS_Store
 
 #RUST
-.debug
-build/
-.fingerprint
-deps/
+openclaw_dashboard/debug/
