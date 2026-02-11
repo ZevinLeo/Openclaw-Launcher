@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // 用于剪贴板
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
@@ -48,6 +49,7 @@ class OpenClawApp extends StatelessWidget {
         cardColor: Colors.white,
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFE54D2E), brightness: Brightness.light),
         fontFamily: Platform.isWindows ? 'Microsoft YaHei UI' : null,
+        dividerColor: Colors.grey.shade300,
       ),
 
       darkTheme: ThemeData(
@@ -62,6 +64,7 @@ class OpenClawApp extends StatelessWidget {
           outline: Color(0xFF333333),
         ),
         fontFamily: Platform.isWindows ? 'Microsoft YaHei UI' : null,
+        dividerColor: const Color(0xFF333333),
         inputDecorationTheme: const InputDecorationTheme(
           filled: true,
           fillColor: Color(0xFF252525),
@@ -258,6 +261,19 @@ class LauncherProvider extends ChangeNotifier {
     return false;
   }
 
+  Future<void> runCommand(String args, {String label = "命令"}) async {
+    addLog("执行: $label ($cliCmd $args)", type: "CMD");
+    if (Platform.isWindows) {
+      // 在新窗口中运行，以便用户能看到交互（如二维码）
+      await Process.start('start', ['cmd', '/k', '$cliCmd $args'], runInShell: true);
+    } else {
+      // 简单命令后台运行
+      final res = await Process.run(cliCmd!, args.split(" "), runInShell: true);
+      addLog(res.stdout.toString());
+      if (res.stderr.toString().isNotEmpty) addLog(res.stderr.toString(), type: "ERROR");
+    }
+  }
+
   Future<void> runInstaller(String method) async {
     addLog("正在启动安装程序 ($method)...", type: "CMD");
     String cmd = "npm";
@@ -269,7 +285,12 @@ class LauncherProvider extends ChangeNotifier {
     }
 
     try {
-      await Process.run(cmd, args, runInShell: true);
+      if (Platform.isWindows && method == "powershell") {
+         await Process.run(cmd, args, runInShell: true);
+      } else {
+         final res = await Process.run(cmd, args, runInShell: true);
+         addLog(res.stdout.toString());
+      }
       await Future.delayed(const Duration(seconds: 5));
       _initDetection();
     } catch (e) {
@@ -306,7 +327,31 @@ class AppConfig {
   factory AppConfig.defaultConfig() => AppConfig({
     "agents": {"defaults": {"workspace": "~/.openclaw/workspace", "model": {"primary": ""}, "imageModel": {"primary": ""}, "thinkingDefault": "off", "sandbox": {"mode": "non-main"}}, "list": [{"id": "main", "name": "Default"}]},
     "messages": {"tts": {"auto": "off", "provider": "elevenlabs"}},
-    "channels": {"telegram": {"enabled": true, "botToken": "", "allowFrom": []}},
+    "channels": {
+      "whatsapp": {
+        "enabled": true,
+        "dmPolicy": "pairing", // pairing | allowlist | open
+        "selfChatMode": false,
+        "mediaMaxMb": 50,
+        "allowFrom": [],
+        "configWrites": true,
+        "ackReaction": {"emoji": "👀", "direct": true, "group": "mentions"},
+      },
+      "telegram": {
+        "enabled": true,
+        "botToken": "",
+        "dmPolicy": "pairing",
+        "streamMode": "partial",
+        "allowFrom": [],
+        "capabilities": {"inlineButtons": "allowlist"}
+      },
+      "feishu": {
+        "enabled": false,
+        "domain": "feishu",
+        "accounts": {"main": {"appId": "", "appSecret": ""}},
+        "dmPolicy": "pairing"
+      }
+    },
     "gateway": {"port": 18789},
   });
   dynamic get(String path) {
@@ -432,7 +477,7 @@ class MainLayout extends StatelessWidget {
     ];
 
     final titles = ["概览", "AI 配置", "消息渠道", "测试诊断", "应用日志", "设置"];
-    final subtitles = ["服务状态、日志与快捷操作", "模型参数与 TTS 设置", "连接 Telegram / Discord", "技能加载与调试", "核心记忆文件管理", "个性化与核心管理"];
+    final subtitles = ["服务状态、日志与快捷操作", "模型参数与 TTS 设置", "WhatsApp / Telegram / Feishu", "技能加载与调试", "核心记忆文件管理", "个性化与核心管理"];
 
     return Scaffold(
       body: Row(
@@ -468,7 +513,7 @@ class MainLayout extends StatelessWidget {
                   height: 80,
                   padding: const EdgeInsets.symmetric(horizontal: 32),
                   decoration: BoxDecoration(
-                    border: Border(bottom: BorderSide(color: Theme.of(context).dividerColor.withValues(alpha: 0.1))),
+                    border: Border(bottom: BorderSide(color: Theme.of(context).dividerColor.withAlpha(25))),
                     color: Theme.of(context).scaffoldBackgroundColor,
                   ),
                   child: Row(
@@ -585,7 +630,7 @@ class _NavTile extends StatelessWidget {
         leading: Icon(icon, color: color, size: 20),
         title: Text(label, style: TextStyle(color: selected ? (theme.brightness == Brightness.dark ? Colors.white : Colors.black) : Colors.grey, fontSize: 14, fontWeight: selected ? FontWeight.bold : FontWeight.normal)),
         selected: selected,
-        selectedTileColor: theme.brightness == Brightness.dark ? const Color(0xFF252525) : theme.colorScheme.primary.withValues(alpha: 0.1),
+        selectedTileColor: theme.brightness == Brightness.dark ? const Color(0xFF252525) : theme.colorScheme.primary.withAlpha(25),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         onTap: () => context.read<NavigationProvider>().setIndex(index),
         contentPadding: const EdgeInsets.symmetric(horizontal: 12),
@@ -594,6 +639,10 @@ class _NavTile extends StatelessWidget {
     );
   }
 }
+
+// ==========================================
+// 5. Dashboard 页面
+// ==========================================
 
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
@@ -675,6 +724,373 @@ class DashboardPage extends StatelessWidget {
   }
 }
 
+// ==========================================
+// 6. 消息渠道 (Channels) 重构版 - WhatsApp & Telegram & Feishu
+// ==========================================
+
+class ChannelsTab extends StatelessWidget {
+  const ChannelsTab({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 3,
+      child: Column(
+        children: [
+          Container(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            child: const TabBar(
+              tabs: [
+                Tab(text: "WhatsApp", icon: Icon(Icons.chat)),
+                Tab(text: "Telegram", icon: Icon(Icons.send)),
+                Tab(text: "Feishu", icon: Icon(Icons.work)),
+              ],
+              labelPadding: EdgeInsets.symmetric(vertical: 12),
+            ),
+          ),
+          const Expanded(
+            child: TabBarView(
+              children: [
+                _WhatsAppConfigView(),
+                _TelegramConfigView(),
+                _FeishuConfigView(),
+              ],
+            ),
+          )
+        ],
+      ),
+    );
+  }
+}
+
+// --- 通用配置组件 ---
+
+class _ConfigTitle extends StatelessWidget {
+  final String title;
+  const _ConfigTitle(this.title);
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 16),
+    child: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+  );
+}
+
+class _StringListEditor extends StatefulWidget {
+  final String label;
+  final List<dynamic> items;
+  final ValueChanged<List<String>> onChanged;
+  const _StringListEditor({required this.label, required this.items, required this.onChanged});
+
+  @override
+  State<_StringListEditor> createState() => _StringListEditorState();
+}
+
+class _StringListEditorState extends State<_StringListEditor> {
+  final TextEditingController _ctrl = TextEditingController();
+
+  void _add() {
+    if (_ctrl.text.isEmpty) return;
+    final newList = List<String>.from(widget.items.map((e) => e.toString()))..add(_ctrl.text);
+    widget.onChanged(newList);
+    _ctrl.clear();
+  }
+
+  void _remove(int index) {
+    final newList = List<String>.from(widget.items.map((e) => e.toString()))..removeAt(index);
+    widget.onChanged(newList);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(widget.label, style: const TextStyle(fontSize: 13, color: Colors.grey)),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(child: TextField(controller: _ctrl, decoration: const InputDecoration(hintText: "输入 ID / 号码...", isDense: true), style: const TextStyle(fontSize: 13))),
+            const SizedBox(width: 8),
+            IconButton.filled(onPressed: _add, icon: const Icon(Icons.add), constraints: const BoxConstraints(maxHeight: 40)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: widget.items.map((e) => Chip(
+            label: Text(e.toString(), style: const TextStyle(fontSize: 12)),
+            onDeleted: () => _remove(widget.items.indexOf(e)),
+            visualDensity: VisualDensity.compact,
+          )).toList(),
+        )
+      ],
+    );
+  }
+}
+
+class _EnumDropdown extends StatelessWidget {
+  final String label;
+  final String value;
+  final List<String> options;
+  final ValueChanged<String?> onChanged;
+  const _EnumDropdown({required this.label, required this.value, required this.options, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 13, color: Colors.grey)),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          value: options.contains(value) ? value : options.first,
+          decoration: const InputDecoration(isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12)),
+          items: options.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+          onChanged: onChanged,
+        )
+      ],
+    );
+  }
+}
+
+class _SwitchTile extends StatelessWidget {
+  final String title;
+  final String? subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  const _SwitchTile({required this.title, this.subtitle, required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return SwitchListTile(
+      title: Text(title, style: const TextStyle(fontSize: 14)),
+      subtitle: subtitle != null ? Text(subtitle!, style: const TextStyle(fontSize: 12, color: Colors.grey)) : null,
+      value: value,
+      onChanged: onChanged,
+      contentPadding: EdgeInsets.zero,
+      dense: true,
+    );
+  }
+}
+
+// --- 具体渠道视图 ---
+
+class _WhatsAppConfigView extends StatelessWidget {
+  const _WhatsAppConfigView();
+
+  @override
+  Widget build(BuildContext context) {
+    final cfg = context.watch<ConfigProvider>();
+    final launcher = context.watch<LauncherProvider>();
+    final ws = cfg.config.get("channels.whatsapp") as Map? ?? {};
+
+    return ListView(
+      padding: const EdgeInsets.all(24),
+      children: [
+        _SectionCard(
+          title: "连接状态 (WhatsApp Web)",
+          child: Column(
+            children: [
+              const Text("WhatsApp 采用 Baileys 协议连接。请点击下方按钮启动登录流程，并在弹出的终端中扫描二维码。", style: TextStyle(color: Colors.grey)),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 12,
+                children: [
+                  FilledButton.icon(
+                    icon: const Icon(Icons.qr_code), 
+                    label: const Text("启动登录 / 扫描二维码"), 
+                    style: FilledButton.styleFrom(backgroundColor: const Color(0xFF25D366)),
+                    onPressed: () => launcher.runCommand("channels login", label: "WhatsApp Login"),
+                  ),
+                  OutlinedButton.icon(icon: const Icon(Icons.logout), label: const Text("登出"), onPressed: () => launcher.runCommand("channels logout", label: "WhatsApp Logout")),
+                ],
+              ),
+              const Divider(height: 32),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text("配对请求 (Pairing)"),
+                  TextButton(onPressed: () => launcher.runCommand("pairing list whatsapp"), child: const Text("查看请求"))
+                ],
+              ),
+              TextField(
+                decoration: InputDecoration(
+                  hintText: "输入配对码批准 (例如: 123456)",
+                  suffixIcon: IconButton(icon: const Icon(Icons.check), onPressed: (){}) // 需结合 TextEditingController
+                ),
+              )
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+        _SectionCard(
+          title: "配置与策略",
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _SwitchTile(
+                title: "启用此渠道", 
+                value: ws["enabled"] ?? true, 
+                onChanged: (v) => cfg.updateField("channels.whatsapp.enabled", v)
+              ),
+              const SizedBox(height: 16),
+              _EnumDropdown(
+                label: "私聊策略 (DM Policy)", 
+                value: ws["dmPolicy"] ?? "pairing", 
+                options: const ["pairing", "allowlist", "open", "disabled"], 
+                onChanged: (v) => cfg.updateField("channels.whatsapp.dmPolicy", v)
+              ),
+              const SizedBox(height: 16),
+              _StringListEditor(
+                label: "允许的号码 (AllowFrom, E.164格式)", 
+                items: ws["allowFrom"] ?? [], 
+                onChanged: (list) => cfg.updateField("channels.whatsapp.allowFrom", list)
+              ),
+              const SizedBox(height: 16),
+              _SwitchTile(
+                title: "个人号自聊模式 (Self Chat Mode)", 
+                subtitle: "如果你使用自己的号码作为机器人，请开启此项",
+                value: ws["selfChatMode"] ?? false, 
+                onChanged: (v) => cfg.updateField("channels.whatsapp.selfChatMode", v)
+              ),
+              _SwitchTile(
+                title: "允许通过聊天修改配置 (Config Writes)", 
+                value: ws["configWrites"] ?? true, 
+                onChanged: (v) => cfg.updateField("channels.whatsapp.configWrites", v)
+              ),
+            ],
+          ),
+        )
+      ],
+    );
+  }
+}
+
+class _TelegramConfigView extends StatelessWidget {
+  const _TelegramConfigView();
+
+  @override
+  Widget build(BuildContext context) {
+    final cfg = context.watch<ConfigProvider>();
+    final launcher = context.watch<LauncherProvider>();
+    final tg = cfg.config.get("channels.telegram") as Map? ?? {};
+
+    return ListView(
+      padding: const EdgeInsets.all(24),
+      children: [
+        _SectionCard(
+          title: "Bot Token",
+          child: Column(
+            children: [
+              _ConfigTextField(
+                label: "Telegram Bot Token (from @BotFather)", 
+                value: tg["botToken"] ?? "", 
+                isSecret: true,
+                onChanged: (v) => cfg.updateField("channels.telegram.botToken", v)
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  TextButton(onPressed: () => launcher.runCommand("pairing list telegram"), child: const Text("查看配对请求")),
+                ],
+              )
+            ],
+          )
+        ),
+        const SizedBox(height: 24),
+        _SectionCard(
+          title: "策略配置",
+          child: Column(
+            children: [
+              _SwitchTile(title: "启用此渠道", value: tg["enabled"] ?? true, onChanged: (v) => cfg.updateField("channels.telegram.enabled", v)),
+              const SizedBox(height: 16),
+              _EnumDropdown(
+                label: "私聊策略 (DM Policy)", 
+                value: tg["dmPolicy"] ?? "pairing", 
+                options: const ["pairing", "allowlist", "open", "disabled"], 
+                onChanged: (v) => cfg.updateField("channels.telegram.dmPolicy", v)
+              ),
+              const SizedBox(height: 16),
+              _EnumDropdown(
+                label: "流式传输模式 (Stream Mode)", 
+                value: tg["streamMode"] ?? "partial", 
+                options: const ["off", "partial", "block"], 
+                onChanged: (v) => cfg.updateField("channels.telegram.streamMode", v)
+              ),
+              const SizedBox(height: 16),
+              _StringListEditor(
+                label: "允许的用户 ID (AllowFrom)", 
+                items: tg["allowFrom"] ?? [], 
+                onChanged: (list) => cfg.updateField("channels.telegram.allowFrom", list)
+              ),
+            ],
+          ),
+        )
+      ],
+    );
+  }
+}
+
+class _FeishuConfigView extends StatelessWidget {
+  const _FeishuConfigView();
+
+  @override
+  Widget build(BuildContext context) {
+    final cfg = context.watch<ConfigProvider>();
+    final fs = cfg.config.get("channels.feishu") as Map? ?? {};
+    final accounts = fs["accounts"] as Map? ?? {};
+    final mainAccount = accounts["main"] as Map? ?? {};
+
+    return ListView(
+      padding: const EdgeInsets.all(24),
+      children: [
+        _SectionCard(
+          title: "飞书 / Lark 应用凭证",
+          child: Column(
+            children: [
+              _SwitchTile(title: "启用此渠道", value: fs["enabled"] ?? false, onChanged: (v) => cfg.updateField("channels.feishu.enabled", v)),
+              const SizedBox(height: 16),
+              _EnumDropdown(
+                label: "API 域名 (Domain)", 
+                value: fs["domain"] ?? "feishu", 
+                options: const ["feishu", "lark"], 
+                onChanged: (v) => cfg.updateField("channels.feishu.domain", v)
+              ),
+              const SizedBox(height: 16),
+              _ConfigTextField(
+                label: "App ID (cli_xxx)", 
+                value: mainAccount["appId"] ?? "", 
+                onChanged: (v) => cfg.updateField("channels.feishu.accounts.main.appId", v)
+              ),
+              _ConfigTextField(
+                label: "App Secret", 
+                value: mainAccount["appSecret"] ?? "", 
+                isSecret: true,
+                onChanged: (v) => cfg.updateField("channels.feishu.accounts.main.appSecret", v)
+              ),
+            ],
+          )
+        ),
+        const SizedBox(height: 24),
+        _SectionCard(
+          title: "策略",
+          child: _EnumDropdown(
+            label: "私聊策略", 
+            value: fs["dmPolicy"] ?? "pairing", 
+            options: const ["pairing", "allowlist", "open"], 
+            onChanged: (v) => cfg.updateField("channels.feishu.dmPolicy", v)
+          )
+        )
+      ],
+    );
+  }
+}
+
+// ==========================================
+// 7. 通用 UI 组件
+// ==========================================
+
 class _SectionCard extends StatelessWidget {
   final String title;
   final Widget child;
@@ -691,7 +1107,7 @@ class _SectionCard extends StatelessWidget {
         color: theme.cardColor,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: isDark ? const Color(0xFF333333) : Colors.grey.shade300),
-        boxShadow: isDark ? [] : [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
+        boxShadow: isDark ? [] : [BoxShadow(color: Colors.black.withAlpha(12), blurRadius: 10, offset: const Offset(0, 4))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -700,8 +1116,7 @@ class _SectionCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: theme.textTheme.bodyLarge?.color)),
-              // ignore: use_null_aware_elements
-              if (trailing != null) trailing!,
+              if (trailing != null) trailing!, // 使用 if 判断 (已修复警告)
             ],
           ),
           const SizedBox(height: 20),
@@ -761,7 +1176,7 @@ class _BigActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? color : (color == const Color(0xFF386A20) ? color : Colors.white);
-    final border = isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade300;
+    final border = isDark ? Colors.white.withAlpha(12) : Colors.grey.shade300;
 
     return Expanded(
       child: Opacity(
@@ -772,7 +1187,7 @@ class _BigActionButton extends StatelessWidget {
             color: bgColor,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: border),
-            boxShadow: (isDark || onTap == null) ? [] : [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 5)],
+            boxShadow: (isDark || onTap == null) ? [] : [BoxShadow(color: Colors.black.withAlpha(12), blurRadius: 5)],
           ),
           child: InkWell(
             onTap: onTap,
@@ -888,20 +1303,6 @@ class ModelsTab extends StatelessWidget {
   }
 }
 
-class ChannelsTab extends StatelessWidget {
-  const ChannelsTab({super.key});
-  @override
-  Widget build(BuildContext context) {
-    final cfg = context.watch<ConfigProvider>();
-    return ListView(
-      padding: const EdgeInsets.all(32),
-      children: [
-        _ConfigTextField(label: "Telegram Bot Token", value: cfg.config.get("channels.telegram.botToken") ?? "", onChanged: (v) => cfg.updateField("channels.telegram.botToken", v), isSecret: true),
-      ],
-    );
-  }
-}
-
 class SkillsTab extends StatelessWidget {
   const SkillsTab({super.key});
   @override
@@ -944,7 +1345,7 @@ class _SoulTabState extends State<SoulTab> {
       children: [
         Container(
           width: 200,
-          decoration: BoxDecoration(border: Border(right: BorderSide(color: Theme.of(context).dividerColor.withValues(alpha: 0.1)))),
+          decoration: BoxDecoration(border: Border(right: BorderSide(color: Theme.of(context).dividerColor.withAlpha(25)))),
           child: ListView.builder(
             itemCount: fp.files.length,
             itemBuilder: (ctx, i) {
@@ -953,7 +1354,7 @@ class _SoulTabState extends State<SoulTab> {
               return ListTile(
                 title: Text(p.basename(f.path), style: TextStyle(color: selected ? (isDark ? Colors.white : Colors.black) : Colors.grey, fontSize: 13)),
                 selected: selected,
-                selectedTileColor: isDark ? const Color(0xFF252525) : Colors.blue.withValues(alpha: 0.1),
+                selectedTileColor: isDark ? const Color(0xFF252525) : Colors.blue.withAlpha(25),
                 onTap: () { context.read<FileProvider>().selectFile(f); _currentFilePath = null; },
               );
             },
