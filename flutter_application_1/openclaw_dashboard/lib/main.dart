@@ -209,7 +209,7 @@ class LauncherProvider extends ChangeNotifier {
         remoteVersion = res.stdout.toString().trim();
         addLog("云端最新版本: $remoteVersion", type: "SUCCESS");
         if (remoteVersion != versionNumber) {
-          addLog("发现新版本！请在设置页执行安装以更新。", type: "INFO");
+          addLog("发现新版本！可点击「立即更新」执行 openclaw update。", type: "INFO");
         } else {
           addLog("当前已是最新版本。", type: "INFO");
         }
@@ -219,6 +219,31 @@ class LauncherProvider extends ChangeNotifier {
       }
     } catch (e) {
       addLog("无法连接 NPM 仓库。", type: "ERROR");
+    }
+  }
+
+  Future<void> updateCore() async {
+    if (cliCmd == null) {
+      addLog("核心未安装，无法更新。", type: "ERROR");
+      return;
+    }
+    addLog(">>> 正在执行 $cliCmd update ...", type: "CMD");
+    try {
+      if (Platform.isWindows) {
+        await Process.start('start', ['cmd', '/k', '$cliCmd update'], runInShell: true);
+        addLog("已弹出更新终端，请在窗口中查看进度。", type: "SUCCESS");
+      } else {
+        final res = await Process.run(cliCmd!, ['update'], runInShell: true);
+        addLog(res.stdout.toString().trim(), type: "INFO");
+        if (res.stderr.toString().trim().isNotEmpty) {
+          addLog(res.stderr.toString().trim(), type: "ERROR");
+        }
+      }
+      addLog("等待更新完成后刷新状态...", type: "INFO");
+      await Future.delayed(const Duration(seconds: 5));
+      await _initFullCheck();
+    } catch (e) {
+      addLog("更新失败: $e", type: "ERROR");
     }
   }
 
@@ -919,18 +944,33 @@ class DashboardPage extends StatelessWidget {
                                   ),
                                 ],
                                 const Spacer(),
-                                SizedBox(
-                                  height: 28,
-                                  child: OutlinedButton.icon(
-                                    onPressed: () => launcher.checkForUpdates(),
-                                    icon: const Icon(Icons.update, size: 14),
-                                    label: const Text("检查更新", style: TextStyle(fontSize: 11)),
-                                    style: OutlinedButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                if (launcher.remoteVersion.isNotEmpty && launcher.remoteVersion != launcher.versionNumber)
+                                  SizedBox(
+                                    height: 28,
+                                    child: FilledButton.icon(
+                                      onPressed: () => launcher.updateCore(),
+                                      icon: const Icon(Icons.system_update, size: 14),
+                                      label: const Text("立即更新", style: TextStyle(fontSize: 11)),
+                                      style: FilledButton.styleFrom(
+                                        backgroundColor: Colors.orange,
+                                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                      ),
+                                    ),
+                                  )
+                                else
+                                  SizedBox(
+                                    height: 28,
+                                    child: OutlinedButton.icon(
+                                      onPressed: () => launcher.checkForUpdates(),
+                                      icon: const Icon(Icons.update, size: 14),
+                                      label: const Text("检查更新", style: TextStyle(fontSize: 11)),
+                                      style: OutlinedButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                      ),
                                     ),
                                   ),
-                                ),
                               ],
                             ),
                           ],
