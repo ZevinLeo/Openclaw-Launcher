@@ -188,7 +188,7 @@ class LauncherProvider extends ChangeNotifier {
       final result = await Process.run(cmd, ['--version'], runInShell: true);
       if (result.exitCode == 0) {
         final output = result.stdout.toString().trim();
-        final regex = RegExp(r"v?(\d+\.\d+\.\d+)");
+        final regex = RegExp(r"v?(\d+\.\d+\.\d+[-.\w]*)");
         final match = regex.firstMatch(output);
         versionNumber = match?.group(1) ?? output;
         return true;
@@ -229,18 +229,16 @@ class LauncherProvider extends ChangeNotifier {
     }
     addLog(">>> 正在执行 $cliCmd update ...", type: "CMD");
     try {
-      if (Platform.isWindows) {
-        await Process.start('start', ['cmd', '/k', '$cliCmd update'], runInShell: true);
-        addLog("已弹出更新终端，请在窗口中查看进度。", type: "SUCCESS");
+      final process = await Process.start(cliCmd!, ['update'], runInShell: true);
+      _monitorStream(process.stdout, "Update");
+      _monitorStream(process.stderr, "Update", isError: true);
+      final exitCode = await process.exitCode;
+      if (exitCode == 0) {
+        addLog("更新完成。", type: "SUCCESS");
       } else {
-        final res = await Process.run(cliCmd!, ['update'], runInShell: true);
-        addLog(res.stdout.toString().trim(), type: "INFO");
-        if (res.stderr.toString().trim().isNotEmpty) {
-          addLog(res.stderr.toString().trim(), type: "ERROR");
-        }
+        addLog("更新进程退出，代码: $exitCode", type: "ERROR");
       }
-      addLog("等待更新完成后刷新状态...", type: "INFO");
-      await Future.delayed(const Duration(seconds: 5));
+      addLog("正在刷新版本状态...", type: "INFO");
       await _initFullCheck();
     } catch (e) {
       addLog("更新失败: $e", type: "ERROR");
@@ -909,76 +907,82 @@ class DashboardPage extends StatelessWidget {
                     Text(isRunning ? "运行中" : "已停止", style: TextStyle(color: isRunning ? Colors.green : Colors.red, fontWeight: FontWeight.bold, fontSize: 12)),
                   ],
                 ),
-                child: Row(
+                child: Column(
                   children: [
-                    _StatusItem(icon: Icons.bolt, label: "端口", value: launcher.currentPort),
-                    const SizedBox(width: 16),
-                    _StatusItem(icon: Icons.memory, label: "进程 ID", value: launcher.currentPid),
-                    const SizedBox(width: 16),
-                    // 版本卡片，内含检查更新按钮
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF252525) : Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(children: [
+                    // 第一行：端口、进程ID、Node 状态
+                    Row(
+                      children: [
+                        _StatusItem(icon: Icons.bolt, label: "端口", value: launcher.currentPort),
+                        const SizedBox(width: 16),
+                        _StatusItem(icon: Icons.memory, label: "进程 ID", value: launcher.currentPid),
+                        const SizedBox(width: 16),
+                        _StatusItem(icon: Icons.router, label: "Node", value: launcher.isNodeConnected ? "已连接" : "--"),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    // 第二行：版本信息 + 检查更新/立即更新
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF252525) : Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Wrap(
+                        alignment: WrapAlignment.spaceBetween,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 12,
+                        runSpacing: 10,
+                        children: [
+                          // 版本信息
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
                               const Icon(Icons.storage, size: 14, color: Colors.grey),
                               const SizedBox(width: 6),
-                              const Text("版本", style: TextStyle(color: Colors.grey, fontSize: 12)),
-                            ]),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Text(launcher.versionNumber, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color)),
-                                if (launcher.remoteVersion.isNotEmpty && launcher.remoteVersion != launcher.versionNumber) ...[
-                                  const SizedBox(width: 8),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(color: Colors.orange, borderRadius: BorderRadius.circular(4)),
-                                    child: Text("New: ${launcher.remoteVersion}", style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-                                  ),
-                                ],
-                                const Spacer(),
-                                if (launcher.remoteVersion.isNotEmpty && launcher.remoteVersion != launcher.versionNumber)
-                                  SizedBox(
-                                    height: 28,
-                                    child: FilledButton.icon(
-                                      onPressed: () => launcher.updateCore(),
-                                      icon: const Icon(Icons.system_update, size: 14),
-                                      label: const Text("立即更新", style: TextStyle(fontSize: 11)),
-                                      style: FilledButton.styleFrom(
-                                        backgroundColor: Colors.orange,
-                                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                                      ),
-                                    ),
-                                  )
-                                else
-                                  SizedBox(
-                                    height: 28,
-                                    child: OutlinedButton.icon(
-                                      onPressed: () => launcher.checkForUpdates(),
-                                      icon: const Icon(Icons.update, size: 14),
-                                      label: const Text("检查更新", style: TextStyle(fontSize: 11)),
-                                      style: OutlinedButton.styleFrom(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                                      ),
-                                    ),
-                                  ),
+                              const Text("版本  ", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                              Text(launcher.versionNumber, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color)),
+                              if (launcher.remoteVersion.isNotEmpty && launcher.remoteVersion != launcher.versionNumber) ...[
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(color: Colors.orange, borderRadius: BorderRadius.circular(4)),
+                                  child: Text("New: ${launcher.remoteVersion}", style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                                ),
                               ],
+                            ],
+                          ),
+                          // 操作按钮
+                          if (launcher.remoteVersion.isNotEmpty && launcher.remoteVersion != launcher.versionNumber)
+                            SizedBox(
+                              height: 28,
+                              child: FilledButton.icon(
+                                onPressed: () => launcher.updateCore(),
+                                icon: const Icon(Icons.system_update, size: 14),
+                                label: const Text("立即更新", style: TextStyle(fontSize: 11)),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: Colors.orange,
+                                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                ),
+                              ),
+                            )
+                          else
+                            SizedBox(
+                              height: 28,
+                              child: OutlinedButton.icon(
+                                onPressed: () => launcher.checkForUpdates(),
+                                icon: const Icon(Icons.update, size: 14),
+                                label: const Text("检查更新", style: TextStyle(fontSize: 11)),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                ),
+                              ),
                             ),
-                          ],
-                        ),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 16),
-                    _StatusItem(icon: Icons.router, label: "Node", value: launcher.isNodeConnected ? "已连接" : "--"),
                   ],
                 ),
               ),
