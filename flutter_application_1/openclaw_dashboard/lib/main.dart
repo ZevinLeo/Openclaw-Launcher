@@ -169,9 +169,6 @@ class LauncherProvider extends ChangeNotifier {
     if (await _checkVersion("openclaw")) {
       cliCmd = "openclaw";
       addLog("核心已就绪: openclaw ($versionNumber)", type: "SUCCESS");
-    } else if (await _checkVersion("openclaw-cn")) {
-      cliCmd = "openclaw-cn";
-      addLog("核心已就绪: openclaw-cn ($versionNumber)", type: "SUCCESS");
     } else {
       versionNumber = "未安装";
       addLog("未检测到核心程序，请前往设置页进行安装。", type: "ERROR");
@@ -341,12 +338,11 @@ class LauncherProvider extends ChangeNotifier {
   }
 
   // 智能安装：自动判断 OS
-  Future<void> runSmartInstaller(String type) async {
+  Future<void> runSmartInstaller() async {
     addLog("正在启动智能安装流程...", type: "CMD");
     
-    final isCN = type == "cn";
-    final String urlSh = isCN ? "https://clawd.org.cn/install.sh" : "https://openclaw.ai/install.sh";
-    final String urlPs = isCN ? "https://clawd.org.cn/install.ps1" : "https://openclaw.ai/install.ps1";
+    const String urlSh = "https://openclaw.ai/install.sh";
+    const String urlPs = "https://openclaw.ai/install.ps1";
 
     try {
       if (Platform.isWindows) {
@@ -418,9 +414,7 @@ class LauncherProvider extends ChangeNotifier {
      addLog("正在执行强力清理...", type: "CMD");
      if (Platform.isWindows) {
        await Process.run('npm', ['uninstall', '-g', 'openclaw'], runInShell: true);
-       await Process.run('npm', ['uninstall', '-g', 'openclaw-cn'], runInShell: true);
        await Process.run('pnpm', ['remove', '-g', 'openclaw'], runInShell: true);
-       await Process.run('pnpm', ['remove', '-g', 'openclaw-cn'], runInShell: true);
      }
      addLog("清理指令已下达。请重新点击检测。", type: "SUCCESS");
      versionNumber = "已清理";
@@ -687,7 +681,7 @@ class MainLayout extends StatelessWidget {
     
     // 页面路由
     final pages = [
-      const DashboardPage(),      // 0: 概览
+      const DashboardPage(),      // 0: 主页
       const AIConfigPage(),       // 1: AI 配置
       const ChannelsPage(),       // 2: 消息渠道 (二级侧边栏)
       const SkillsPage(),          // 3: 测试诊断
@@ -734,7 +728,7 @@ class MainLayout extends StatelessWidget {
                   child: ListView(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     children: [
-                      _SidebarItem(icon: Icons.grid_view_rounded, label: "概览", index: 0, isSelected: nav.selectedIndex == 0),
+                      _SidebarItem(icon: Icons.home_rounded, label: "主页", index: 0, isSelected: nav.selectedIndex == 0),
                       const SizedBox(height: 4),
                       _SidebarItem(icon: Icons.smart_toy_outlined, label: "AI 配置", index: 1, isSelected: nav.selectedIndex == 1),
                       const SizedBox(height: 4),
@@ -863,7 +857,7 @@ class _BottomStatusWidget extends StatelessWidget {
 }
 
 // ==========================================
-// 4. Dashboard (概览)
+// 4. Dashboard (主页)
 // ==========================================
 
 class DashboardPage extends StatelessWidget {
@@ -876,7 +870,7 @@ class DashboardPage extends StatelessWidget {
 
     return Column(
       children: [
-        _HeaderBar(title: "概览", subtitle: "服务状态、日志与快捷操作"),
+        _HeaderBar(title: "主页", subtitle: "服务状态、日志与快捷操作"),
         Expanded(
           child: ListView(
             padding: const EdgeInsets.all(24),
@@ -896,7 +890,53 @@ class DashboardPage extends StatelessWidget {
                     const SizedBox(width: 16),
                     _StatusItem(icon: Icons.memory, label: "进程 ID", value: launcher.currentPid),
                     const SizedBox(width: 16),
-                    _StatusItem(icon: Icons.storage, label: "版本", value: launcher.versionNumber),
+                    // 版本卡片，内含检查更新按钮
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF252525) : Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(children: [
+                              const Icon(Icons.storage, size: 14, color: Colors.grey),
+                              const SizedBox(width: 6),
+                              const Text("版本", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                            ]),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Text(launcher.versionNumber, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color)),
+                                if (launcher.remoteVersion.isNotEmpty && launcher.remoteVersion != launcher.versionNumber) ...[
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(color: Colors.orange, borderRadius: BorderRadius.circular(4)),
+                                    child: Text("New: ${launcher.remoteVersion}", style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                                  ),
+                                ],
+                                const Spacer(),
+                                SizedBox(
+                                  height: 28,
+                                  child: OutlinedButton.icon(
+                                    onPressed: () => launcher.checkForUpdates(),
+                                    icon: const Icon(Icons.update, size: 14),
+                                    label: const Text("检查更新", style: TextStyle(fontSize: 11)),
+                                    style: OutlinedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                     const SizedBox(width: 16),
                     _StatusItem(icon: Icons.router, label: "Node", value: launcher.isNodeConnected ? "已连接" : "--"),
                   ],
@@ -1403,14 +1443,88 @@ class ChannelsPage extends StatefulWidget {
 class _ChannelsPageState extends State<ChannelsPage> {
   int _selectedChannelIdx = 0;
   
-  // 更新：加入了 Discord 和 iMessage
-  final channels = [
-    {"name": "WhatsApp", "icon": Icons.phone_android, "desc": "Meta 官方 API"},
-    {"name": "Telegram", "icon": Icons.send, "desc": "Bot API"},
-    {"name": "Feishu", "icon": Icons.work, "desc": "飞书/Lark 机器人"},
-    {"name": "Discord", "icon": Icons.discord, "desc": "Bot Gateway"}, // 新增
-    {"name": "iMessage", "icon": Icons.message, "desc": "macOS 本地集成"}, // 新增
+  // OpenClaw 支持的所有渠道模板（用于添加时选择）
+  static final allAvailableChannels = [
+    {"name": "WhatsApp", "icon": Icons.phone_android, "desc": "Meta 官方 API", "configKey": "whatsapp"},
+    {"name": "Telegram", "icon": Icons.send, "desc": "Bot API", "configKey": "telegram"},
+    {"name": "Feishu", "icon": Icons.work, "desc": "飞书/Lark 机器人", "configKey": "feishu"},
+    {"name": "Discord", "icon": Icons.discord, "desc": "Bot Gateway", "configKey": "discord"},
+    {"name": "iMessage", "icon": Icons.message, "desc": "macOS 本地集成", "configKey": "imessage"},
   ];
+
+  // 当前已添加的渠道
+  List<Map<String, dynamic>> channels = [
+    {"name": "WhatsApp", "icon": Icons.phone_android, "desc": "Meta 官方 API", "configKey": "whatsapp"},
+    {"name": "Telegram", "icon": Icons.send, "desc": "Bot API", "configKey": "telegram"},
+    {"name": "Feishu", "icon": Icons.work, "desc": "飞书/Lark 机器人", "configKey": "feishu"},
+    {"name": "Discord", "icon": Icons.discord, "desc": "Bot Gateway", "configKey": "discord"},
+    {"name": "iMessage", "icon": Icons.message, "desc": "macOS 本地集成", "configKey": "imessage"},
+  ];
+
+  void _addChannel(BuildContext context) {
+    // 找出尚未添加的渠道
+    final existingKeys = channels.map((c) => c["configKey"]).toSet();
+    final available = allAvailableChannels.where((c) => !existingKeys.contains(c["configKey"])).toList();
+    
+    if (available.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("所有支持的渠道都已添加")));
+      return;
+    }
+
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: const Text("添加渠道"),
+      content: SizedBox(
+        width: 300,
+        child: ListView.builder(
+          shrinkWrap: true,
+          itemCount: available.length,
+          itemBuilder: (_, i) {
+            final ch = available[i];
+            return ListTile(
+              leading: Icon(ch["icon"] as IconData),
+              title: Text(ch["name"] as String),
+              subtitle: Text(ch["desc"] as String),
+              onTap: () {
+                setState(() {
+                  channels.add(Map<String, dynamic>.from(ch));
+                  _selectedChannelIdx = channels.length - 1;
+                });
+                // 初始化该渠道的默认配置
+                final cfg = context.read<ConfigProvider>();
+                cfg.updateField("channels.${ch['configKey']}.enabled", true);
+                Navigator.pop(ctx);
+              },
+            );
+          },
+        ),
+      ),
+      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("取消"))],
+    ));
+  }
+
+  void _removeChannel(int index) {
+    final ch = channels[index];
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: Text("删除 ${ch['name']}"),
+      content: const Text("确认移除此渠道？对应的配置数据不会被删除，重新添加后可恢复。"),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("取消")),
+        FilledButton(
+          onPressed: () {
+            setState(() {
+              channels.removeAt(index);
+              if (_selectedChannelIdx >= channels.length) {
+                _selectedChannelIdx = channels.isEmpty ? 0 : channels.length - 1;
+              }
+            });
+            Navigator.pop(ctx);
+          },
+          style: FilledButton.styleFrom(backgroundColor: Colors.red),
+          child: const Text("删除"),
+        ),
+      ],
+    ));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1427,21 +1541,47 @@ class _ChannelsPageState extends State<ChannelsPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text("启用渠道", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
-              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text("已启用渠道", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+                  IconButton(
+                    icon: const Icon(Icons.add_circle_outline, size: 18),
+                    tooltip: "添加渠道",
+                    onPressed: () => _addChannel(context),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
               Expanded(
-                child: ListView.builder(
-                  itemCount: channels.length,
-                  itemBuilder: (context, index) {
-                    return _SecondarySidebarItem(
-                      icon: channels[index]['icon'] as IconData,
-                      title: channels[index]['name'] as String,
-                      subtitle: channels[index]['desc'] as String?,
-                      isSelected: index == _selectedChannelIdx,
-                      onTap: () => setState(() => _selectedChannelIdx = index),
-                    );
-                  },
-                ),
+                child: channels.isEmpty
+                  ? const Center(child: Text("暂无渠道，点击 + 添加", style: TextStyle(color: Colors.grey, fontSize: 12)))
+                  : ListView.builder(
+                    itemCount: channels.length,
+                    itemBuilder: (context, index) {
+                      return Dismissible(
+                        key: ValueKey(channels[index]['configKey']),
+                        direction: DismissDirection.endToStart,
+                        confirmDismiss: (_) async {
+                          _removeChannel(index);
+                          return false; // 由对话框控制实际删除
+                        },
+                        background: Container(
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 16),
+                          decoration: BoxDecoration(color: Colors.red.withAlpha(30), borderRadius: BorderRadius.circular(12)),
+                          child: const Icon(Icons.delete, color: Colors.red, size: 20),
+                        ),
+                        child: _SecondarySidebarItem(
+                          icon: channels[index]['icon'] as IconData,
+                          title: channels[index]['name'] as String,
+                          subtitle: channels[index]['desc'] as String?,
+                          isSelected: index == _selectedChannelIdx,
+                          onTap: () => setState(() => _selectedChannelIdx = index),
+                        ),
+                      );
+                    },
+                  ),
               ),
             ],
           ),
@@ -1449,33 +1589,36 @@ class _ChannelsPageState extends State<ChannelsPage> {
         
         // 内容详情
         Expanded(
-          child: Column(
-            children: [
-              _HeaderBar(
-                title: channels[_selectedChannelIdx]['name'] as String, 
-                subtitle: "配置 ${channels[_selectedChannelIdx]['name']} 的连接参数与策略"
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(32),
-                  child: _buildDetailPanel(),
+          child: channels.isEmpty
+            ? const Center(child: Text("请先添加一个渠道", style: TextStyle(color: Colors.grey)))
+            : Column(
+              children: [
+                _HeaderBar(
+                  title: channels[_selectedChannelIdx]['name'] as String, 
+                  subtitle: "配置 ${channels[_selectedChannelIdx]['name']} 的连接参数与策略"
                 ),
-              ),
-            ],
-          ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: _buildDetailPanel(),
+                  ),
+                ),
+              ],
+            ),
         ),
       ],
     );
   }
 
-  // 更新：增加了 Discord 和 iMessage 的路由
   Widget _buildDetailPanel() {
-    switch (_selectedChannelIdx) {
-      case 0: return const _WhatsAppConfigView();
-      case 1: return const _TelegramConfigView();
-      case 2: return const _FeishuConfigView();
-      case 3: return const _DiscordConfigView(); // 新增
-      case 4: return const _IMessageConfigView(); // 新增
+    if (channels.isEmpty) return const SizedBox.shrink();
+    final configKey = channels[_selectedChannelIdx]['configKey'] as String;
+    switch (configKey) {
+      case "whatsapp": return const _WhatsAppConfigView();
+      case "telegram": return const _TelegramConfigView();
+      case "feishu": return const _FeishuConfigView();
+      case "discord": return const _DiscordConfigView();
+      case "imessage": return const _IMessageConfigView();
       default: return const Center(child: Text("未知的渠道"));
     }
   }
@@ -1603,16 +1746,14 @@ class SettingsPage extends StatelessWidget {
       const SizedBox(height: 24),
       _SectionCard(title: "核心管理", child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text("当前版本: ${launcher.versionNumber}", style: const TextStyle(fontWeight: FontWeight.bold)),
-        const SizedBox(height: 16),
-        const Text("一键安装 / 修复", style: TextStyle(fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
+        const SizedBox(height: 20),
         Row(children: [
-          Expanded(child: _BigInstallButton(title: "汉化版 (CN)", subtitle: "clawd.org.cn", icon: Icons.download, color: Colors.orange, onTap: () => launcher.runSmartInstaller("cn"))),
+          Expanded(child: _BigInstallButton(title: "安装", subtitle: "openclaw.ai", icon: Icons.download, color: Colors.blue, onTap: () => launcher.runSmartInstaller())),
           const SizedBox(width: 16),
-          Expanded(child: _BigInstallButton(title: "原版 (Official)", subtitle: "openclaw.ai", icon: Icons.public, color: Colors.blue, onTap: () => launcher.runSmartInstaller("org"))),
+          Expanded(child: _BigInstallButton(title: "修复", subtitle: "重新安装核心", icon: Icons.build, color: Colors.orange, onTap: () => launcher.runSmartInstaller())),
+          const SizedBox(width: 16),
+          Expanded(child: _BigInstallButton(title: "卸载", subtitle: "移除核心程序", icon: Icons.delete_forever, color: Colors.red, onTap: () => launcher.forceClean())),
         ]),
-        const Divider(height: 32),
-        FilledButton(onPressed: () => launcher.forceClean(), style: FilledButton.styleFrom(backgroundColor: Colors.red), child: const Text("强力清理 (Force Clean)"))
       ])),
     ]);
   }
