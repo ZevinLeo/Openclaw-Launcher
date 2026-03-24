@@ -45,6 +45,50 @@ class OpenClawApp extends StatelessWidget {
     const primaryBlue = Color(0xFF2979FF); // 深色模式下的亮蓝
     const primaryBlueLight = Color(0xFF0078D4); // 亮色模式下的标准蓝
 
+    // 统一的文本选择右键菜单
+    Widget _buildContextMenu(BuildContext context, EditableTextState editableTextState) {
+      return AdaptiveTextSelectionToolbar(
+        anchors: editableTextState.contextMenuAnchors,
+        children: [
+          TextSelectionToolbarTextButton(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            onPressed: () {
+              editableTextState.selectAll();
+              editableTextState.hideContextMenu();
+            },
+            child: const Text("全选"),
+          ),
+          TextSelectionToolbarTextButton(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            onPressed: () {
+              editableTextState.copySelection(SelectionChangedCause.toolbar);
+              editableTextState.hideContextMenu();
+            },
+            child: const Text("复制"),
+          ),
+          TextSelectionToolbarTextButton(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            onPressed: () {
+              editableTextState.cutSelection(SelectionChangedCause.toolbar);
+              editableTextState.hideContextMenu();
+            },
+            child: const Text("剪切"),
+          ),
+          TextSelectionToolbarTextButton(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            onPressed: () async {
+              final data = await Clipboard.getData(Clipboard.kTextPlain);
+              if (data?.text != null) {
+                editableTextState.insertText(data!.text!);
+              }
+              editableTextState.hideContextMenu();
+            },
+            child: const Text("粘贴"),
+          ),
+        ],
+      );
+    }
+
     return MaterialApp(
       title: 'OpenClaw Manager',
       debugShowCheckedModeBanner: false,
@@ -75,6 +119,9 @@ class OpenClawApp extends StatelessWidget {
             foregroundColor: Colors.white,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
+        ),
+        textSelectionThemeData: TextSelectionThemeData(
+          contextMenuBuilder: _buildContextMenu,
         ),
       ),
 
@@ -107,6 +154,9 @@ class OpenClawApp extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
+        ),
+        textSelectionThemeData: TextSelectionThemeData(
+          contextMenuBuilder: _buildContextMenu,
         ),
       ),
       home: const MainLayout(),
@@ -344,7 +394,21 @@ class LauncherProvider extends ChangeNotifier {
     stream.transform(utf8.decoder).listen((data) {
       if (data.trim().isEmpty) return;
       for (var line in data.split('\n')) {
-        if (line.trim().isNotEmpty) addLog(line.trim(), type: isError ? "ERROR" : "INFO");
+        final trimmed = line.trim();
+        if (trimmed.isEmpty) continue;
+        String type;
+        if (!isError) {
+          type = "INFO";
+        } else {
+          // stderr 内容智能分类：只有真正的错误才标红
+          final lower = trimmed.toLowerCase();
+          if (lower.contains("error") || lower.contains("fatal") || lower.contains("exception") || lower.contains("failed to")) {
+            type = "ERROR";
+          } else {
+            type = "WARN";
+          }
+        }
+        addLog(trimmed, type: type);
       }
     });
   }
@@ -391,11 +455,33 @@ class LauncherProvider extends ChangeNotifier {
   Future<void> runCommand(String args) async {
     if (cliCmd == null) return;
     addLog("执行: $cliCmd $args", type: "CMD");
-    if (Platform.isWindows) {
-      await Process.start('start', ['cmd', '/k', '$cliCmd $args'], runInShell: true);
-    } else {
-      final res = await Process.run(cliCmd!, args.split(" "), runInShell: true);
-      addLog(res.stdout.toString());
+    try {
+      final process = await Process.start(cliCmd!, args.split(" "), runInShell: true);
+      _monitorStream(process.stdout, "CMD");
+      _monitorStream(process.stderr, "CMD", isError: true);
+    } catch (e) {
+      addLog("执行失败: $e", type: "ERROR");
+    }
+  }
+
+  /// 通用 shell 命令执行（终端输入框使用）
+  Future<void> executeShellCommand(String command) async {
+    if (command.trim().isEmpty) return;
+    addLog("\$ $command", type: "CMD");
+    try {
+      final process = await Process.start(
+        Platform.isWindows ? 'cmd' : 'sh',
+        Platform.isWindows ? ['/c', command] : ['-c', command],
+        runInShell: false,
+      );
+      _monitorStream(process.stdout, "Shell");
+      _monitorStream(process.stderr, "Shell", isError: true);
+      final exitCode = await process.exitCode;
+      if (exitCode != 0) {
+        addLog("进程退出，代码: $exitCode", type: "ERROR");
+      }
+    } catch (e) {
+      addLog("命令执行失败: $e", type: "ERROR");
     }
   }
 
@@ -883,20 +969,74 @@ class _BottomStatusWidget extends StatelessWidget {
 // 4. Dashboard (主页)
 // ==========================================
 
-class DashboardPage extends StatelessWidget {
+class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
+
+  @override
+  State<DashboardPage> createState() => _DashboardPageState();
+}
+
+class _DashboardPageState extends State<DashboardPage> {
+  final TextEditingController _cmdController = TextEditingController();
+  final FocusNode _cmdFocus = FocusNode();
+  final List<String> _cmdHistory = [];
+  int _cmdHistoryIdx = -1;
+
+  @override
+  void dispose() {
+    _cmdController.dispose();
+    _cmdFocus.dispose();
+    super.dispose();
+  }
+
+  void _submitCommand(LauncherProvider launcher) {
+    final cmd = _cmdController.text.trim();
+    if (cmd.isEmpty) return;
+    _cmdHistory.insert(0, cmd);
+    _cmdHistoryIdx = -1;
+    _cmdController.clear();
+    
+    // 内置 clear 命令
+    if (cmd == "clear" || cmd == "cls") {
+      launcher.logs.clear();
+      launcher.notifyListeners();
+      return;
+    }
+    launcher.executeShellCommand(cmd);
+  }
+
+  void _navigateHistory(bool up) {
+    if (_cmdHistory.isEmpty) return;
+    if (up) {
+      if (_cmdHistoryIdx < _cmdHistory.length - 1) _cmdHistoryIdx++;
+    } else {
+      if (_cmdHistoryIdx > 0) {
+        _cmdHistoryIdx--;
+      } else {
+        _cmdHistoryIdx = -1;
+        _cmdController.clear();
+        return;
+      }
+    }
+    if (_cmdHistoryIdx >= 0 && _cmdHistoryIdx < _cmdHistory.length) {
+      _cmdController.text = _cmdHistory[_cmdHistoryIdx];
+      _cmdController.selection = TextSelection.fromPosition(TextPosition(offset: _cmdController.text.length));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final launcher = context.watch<LauncherProvider>();
     final isRunning = launcher.isGatewayRunning;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Column(
       children: [
         _HeaderBar(title: "主页", subtitle: "服务状态、日志与快捷操作"),
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.all(24),
+        // 上半区：状态 + 快捷操作（不可滚动，固定高度）
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+          child: Column(
             children: [
               _SectionCard(
                 title: "服务状态",
@@ -909,7 +1049,6 @@ class DashboardPage extends StatelessWidget {
                 ),
                 child: Column(
                   children: [
-                    // 第一行：端口、进程ID、Node 状态
                     Row(
                       children: [
                         _StatusItem(icon: Icons.bolt, label: "端口", value: launcher.currentPort),
@@ -920,12 +1059,11 @@ class DashboardPage extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    // 第二行：版本信息 + 检查更新/立即更新
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF252525) : Colors.grey.shade100,
+                        color: isDark ? const Color(0xFF252525) : Colors.grey.shade100,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Wrap(
@@ -934,7 +1072,6 @@ class DashboardPage extends StatelessWidget {
                         spacing: 12,
                         runSpacing: 10,
                         children: [
-                          // 版本信息
                           Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -952,7 +1089,6 @@ class DashboardPage extends StatelessWidget {
                               ],
                             ],
                           ),
-                          // 操作按钮
                           if (launcher.remoteVersion.isNotEmpty && launcher.remoteVersion != launcher.versionNumber)
                             SizedBox(
                               height: 28,
@@ -986,15 +1122,15 @@ class DashboardPage extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
               _SectionCard(
                 title: "快捷操作",
                 child: Row(
                   children: [
                     _DashboardBtn(
-                      label: "启动", icon: Icons.play_arrow, 
-                      color: const Color(0xFF386A20), iconColor: const Color(0xFFB8F397), 
-                      onTap: isRunning ? null : () => launcher.startServices()
+                      label: "启动", icon: Icons.play_arrow,
+                      color: const Color(0xFF386A20), iconColor: const Color(0xFFB8F397),
+                      onTap: isRunning ? null : () => launcher.startServices(),
                     ),
                     const SizedBox(width: 16),
                     _DashboardBtn(label: "停止", icon: Icons.stop, color: null, iconColor: const Color.fromARGB(255, 0, 0, 0), onTap: !isRunning ? null : () => launcher.stopAll()),
@@ -1005,35 +1141,156 @@ class DashboardPage extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
-              _SectionCard(
-                title: "实时日志",
-                trailing: const Icon(Icons.refresh, size: 16, color: Colors.grey),
-                child: Container(
-                  height: 250,
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        // 下半区：终端日志（铺满剩余空间）
+        Expanded(
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF0A0A0A) : const Color(0xFF1E1E1E),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: isDark ? const Color(0xFF333333) : Colors.grey.shade400),
+            ),
+            child: Column(
+              children: [
+                // 终端标题栏
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF0F0F0F) : Colors.grey.shade200,
-                    borderRadius: BorderRadius.circular(8),
+                    color: isDark ? const Color(0xFF161616) : const Color(0xFF2D2D2D),
+                    borderRadius: const BorderRadius.only(topLeft: Radius.circular(12), topRight: Radius.circular(12)),
                   ),
-                  child: ListView.builder(
-                    controller: launcher.logScrollCtrl,
-                    itemCount: launcher.logs.length,
-                    itemBuilder: (ctx, i) {
-                      final log = launcher.logs[i];
-                      Color c = Colors.grey;
-                      if (log.type == "ERROR") c = Colors.red;
-                      if (log.type == "SUCCESS") c = Colors.green;
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 2),
-                        child: Text("[${log.time}] ${log.message}", style: TextStyle(color: c, fontFamily: "Consolas", fontSize: 12)),
-                      );
-                    },
+                  child: Row(
+                    children: [
+                      const Icon(Icons.terminal, size: 14, color: Colors.grey),
+                      const SizedBox(width: 8),
+                      const Text("终端", style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
+                      const SizedBox(width: 12),
+                      // 清空日志按钮
+                      SizedBox(
+                        height: 24,
+                        child: TextButton.icon(
+                          onPressed: () {
+                            launcher.logs.clear();
+                            launcher.notifyListeners();
+                          },
+                          icon: const Icon(Icons.delete_sweep, size: 13),
+                          label: const Text("清空", style: TextStyle(fontSize: 11)),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.grey,
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                          ),
+                        ),
+                      ),
+                      const Spacer(),
+                      // 复制全部日志
+                      InkWell(
+                        onTap: () {
+                          final allLogs = launcher.logs.map((l) => "[${l.time}] ${l.message}").join("\n");
+                          Clipboard.setData(ClipboardData(text: allLogs));
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("日志已复制到剪贴板"), duration: Duration(seconds: 1)));
+                        },
+                        child: const Padding(
+                          padding: EdgeInsets.all(4),
+                          child: Icon(Icons.copy_all, size: 14, color: Colors.grey),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-            ],
+                // 日志内容区（可滚动 + 可选择复制）
+                Expanded(
+                  child: SelectionArea(
+                    child: ListView.builder(
+                      controller: launcher.logScrollCtrl,
+                      padding: const EdgeInsets.all(16),
+                      itemCount: launcher.logs.length,
+                      itemBuilder: (ctx, i) {
+                        final log = launcher.logs[i];
+                        Color c = const Color(0xFFCCCCCC);
+                        if (log.type == "ERROR") c = const Color(0xFFFF6B6B);
+                        if (log.type == "WARN") c = const Color(0xFFFFD43B);
+                        if (log.type == "SUCCESS") c = const Color(0xFF69DB7C);
+                        if (log.type == "CMD") c = const Color(0xFF74C0FC);
+                        if (log.type == "DEBUG") c = const Color(0xFF868E96);
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 1),
+                          child: Text(
+                            "[${log.time}] ${log.message}",
+                            style: TextStyle(color: c, fontFamily: "Consolas", fontSize: 12, height: 1.5),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                // 命令输入框
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF161616) : const Color(0xFF2D2D2D),
+                    borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(12), bottomRight: Radius.circular(12)),
+                    border: Border(top: BorderSide(color: isDark ? const Color(0xFF333333) : Colors.grey.shade600)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Text("\$ ", style: TextStyle(color: Color(0xFF69DB7C), fontFamily: "Consolas", fontSize: 13, fontWeight: FontWeight.bold)),
+                      Expanded(
+                        child: KeyboardListener(
+                          focusNode: FocusNode(),
+                          onKeyEvent: (event) {
+                            if (event is KeyDownEvent) {
+                              if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+                                _navigateHistory(true);
+                              } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+                                _navigateHistory(false);
+                              }
+                            }
+                          },
+                          child: TextField(
+                            controller: _cmdController,
+                            focusNode: _cmdFocus,
+                            style: const TextStyle(color: Colors.white, fontFamily: "Consolas", fontSize: 13),
+                            decoration: const InputDecoration(
+                              hintText: "输入命令...",
+                              hintStyle: TextStyle(color: Color(0xFF555555), fontFamily: "Consolas", fontSize: 13),
+                              border: InputBorder.none,
+                              isDense: true,
+                              contentPadding: EdgeInsets.symmetric(vertical: 4),
+                              fillColor: Colors.transparent,
+                              filled: true,
+                            ),
+                            contextMenuBuilder: (context, EditableTextState editableTextState) {
+                              return AdaptiveTextSelectionToolbar.editableText(
+                                editableTextState: editableTextState,
+                              );
+                            },
+                            onSubmitted: (_) {
+                              _submitCommand(launcher);
+                              _cmdFocus.requestFocus();
+                            },
+                          ),
+                        ),
+                      ),
+                      InkWell(
+                        onTap: () {
+                          _submitCommand(launcher);
+                          _cmdFocus.requestFocus();
+                        },
+                        child: const Padding(
+                          padding: EdgeInsets.all(4),
+                          child: Icon(Icons.send, size: 16, color: Color(0xFF69DB7C)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ],
@@ -1252,7 +1509,7 @@ class _AIConfigPageState extends State<AIConfigPage> {
         ),
         const SizedBox(height: 24),
         _SectionCard(
-          title: "高可用策略",
+          title: "备用策略",
           child: _StringListEditor(
             label: "回退模型列表 (Fallbacks)",
             items: modelDefaults["fallbacks"] ?? [],

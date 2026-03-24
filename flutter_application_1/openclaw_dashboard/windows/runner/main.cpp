@@ -32,9 +32,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   }
   window.SetQuitOnClose(true);
 
-  // 启动时最大化窗口
-  ::ShowWindow(window.GetHandle(), SW_MAXIMIZE);
-
   ::MSG msg;
   while (::GetMessage(&msg, nullptr, 0, 0)) {
     ::TranslateMessage(&msg);
