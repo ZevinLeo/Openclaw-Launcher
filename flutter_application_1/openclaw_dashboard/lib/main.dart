@@ -1,3 +1,5 @@
+// ignore_for_file: unnecessary_import, avoid_print
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -562,7 +564,7 @@ class SkillModel {
 class SkillsProvider extends ChangeNotifier {
   List<SkillModel> skills = [];
   bool isLoading = false;
-  String _homePath = Platform.environment[Platform.isWindows ? 'UserProfile' : 'HOME'] ?? '.';
+  final String _homePath = Platform.environment[Platform.isWindows ? 'UserProfile' : 'HOME'] ?? '.';
 
   // 模拟 Bundled 技能 (因为无法直接读取打包内的文件，实际开发中可用 AssetBundle)
   final List<SkillModel> _bundledDefaults = [
@@ -2055,7 +2057,7 @@ class _SectionCard extends StatelessWidget {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(color: theme.cardColor, borderRadius: BorderRadius.circular(16), border: Border.all(color: isDark ? const Color(0xFF333333) : Colors.grey.shade300)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: theme.textTheme.bodyLarge?.color)), if(trailing!=null) trailing!]),
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: theme.textTheme.bodyLarge?.color)), ?trailing]),
         const SizedBox(height: 20),
         child
       ]),
@@ -2119,7 +2121,7 @@ class _EnumDropdown extends StatelessWidget {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text(label, style: const TextStyle(fontSize: 13, color: Colors.grey)),
       const SizedBox(height: 8),
-      DropdownButtonFormField<String>(value: options.contains(value) ? value : options.first, items: options.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(), onChanged: onChanged)
+      DropdownButtonFormField<String>(initialValue: options.contains(value) ? value : options.first, items: options.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(), onChanged: onChanged)
     ]);
   }
 }
@@ -2219,6 +2221,7 @@ class _SecondarySidebarItem extends StatelessWidget {
                         Text(
                           subtitle!,
                           style: TextStyle(
+                            // ignore: deprecated_member_use
                             color: fgColor.withOpacity(0.7),
                             fontSize: 10,
                           ),
