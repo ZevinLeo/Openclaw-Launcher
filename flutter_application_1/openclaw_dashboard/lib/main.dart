@@ -138,6 +138,97 @@ class LauncherProvider extends ChangeNotifier {
   
   String currentPort = "18789";
   String currentPid = "--";
+  DateTime? _serviceStartTime;
+  int totalTokensUsed = 0;
+  
+  // 运行时长格式化
+  String get uptime {
+    if (_serviceStartTime == null) return "--";
+    final d = DateTime.now().difference(_serviceStartTime!);
+    if (d.inHours > 0) return "${d.inHours}h ${d.inMinutes % 60}m";
+    if (d.inMinutes > 0) return "${d.inMinutes}m ${d.inSeconds % 60}s";
+    return "${d.inSeconds}s";
+  }
+
+  String tokenUsageDisplay = "--";  // 用于显示的 token 用量文本
+  String currentModelDisplay = "--"; // 当前使用的模型
+
+  // 刷新 token 使用量（调用 openclaw status --usage）
+  Future<void> refreshTokenUsage() async {
+    if (cliCmd == null || !isGatewayRunning) {
+      tokenUsageDisplay = "--";
+      currentModelDisplay = "--";
+      notifyListeners();
+      return;
+    }
+    try {
+      final res = await Process.run(cliCmd!, ['status', '--usage'], runInShell: true);
+      if (res.exitCode == 0) {
+        final output = res.stdout.toString().trim();
+        _parseUsageTable(output);
+      }
+    } catch (e) {
+      // 静默失败
+    }
+    notifyListeners();
+  }
+
+  void _parseUsageTable(String output) {
+    final lines = output.split('\n');
+    // 按 provider 分组：{ provider: { outputTokens, model } }
+    final Map<String, int> providerTokens = {};
+    final Map<String, String> providerModels = {};
+    
+    for (var line in lines) {
+      if (line.contains('───') || line.contains('Key') || line.trim().isEmpty) continue;
+      if (!line.contains('│')) continue;
+      
+      final parts = line.split('│').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+      if (parts.length < 5) continue;
+      
+      // parts: [Key, Kind, Age, Model, Tokens]
+      final model = parts[3];
+      final tokenStr = parts[4];
+      
+      // 提取 provider 名称
+      final provider = model.contains('/') ? model.split('/').first : model;
+      
+      // 解析 output tokens: "unknown/197k (?%)" → 197000
+      final match = RegExp(r'(\d+\.?\d*[KkMm]?)\s*/\s*(\d+\.?\d*[KkMm]?)').firstMatch(tokenStr);
+      if (match != null) {
+        final outTokens = _parseTokenNumber(match.group(2) ?? "0");
+        // 同一 provider 取最大值（避免重复 session 导致重复计算）
+        if (!providerTokens.containsKey(provider) || outTokens > providerTokens[provider]!) {
+          providerTokens[provider] = outTokens;
+          providerModels[provider] = model;
+        }
+      }
+    }
+    
+    // 汇总所有 provider 的 tokens
+    final totalTokens = providerTokens.values.fold(0, (sum, v) => sum + v);
+    if (totalTokens > 0) {
+      tokenUsageDisplay = totalTokens >= 1000000
+          ? "${(totalTokens / 1000000).toStringAsFixed(1)}M"
+          : "${(totalTokens / 1000).toStringAsFixed(1)}K";
+    } else {
+      tokenUsageDisplay = "--";
+    }
+    
+    // 当前模型取第一个
+    if (providerModels.isNotEmpty) {
+      final firstModel = providerModels.values.first;
+      final parts = firstModel.split('/');
+      currentModelDisplay = parts.length > 1 ? parts.last : firstModel;
+    }
+  }
+
+  int _parseTokenNumber(String s) {
+    s = s.trim().toUpperCase();
+    if (s.endsWith('M')) return ((double.tryParse(s.substring(0, s.length - 1)) ?? 0) * 1000000).toInt();
+    if (s.endsWith('K')) return ((double.tryParse(s.substring(0, s.length - 1)) ?? 0) * 1000).toInt();
+    return int.tryParse(s) ?? 0;
+  }
   
   List<LogEntry> logs = [];
   final ScrollController logScrollCtrl = ScrollController();
@@ -273,6 +364,7 @@ class LauncherProvider extends ChangeNotifier {
       }
 
       isGatewayRunning = true;
+      _serviceStartTime = DateTime.now();
       notifyListeners();
       addLog("Gateway 启动成功 (HTTP 200 OK)", type: "SUCCESS");
 
@@ -326,6 +418,7 @@ class LauncherProvider extends ChangeNotifier {
     isGatewayRunning = false;
     isNodeConnected = false;
     currentPid = "--";
+    _serviceStartTime = null;
     _procGateway = null;
     _procNode = null;
     notifyListeners();
@@ -516,9 +609,12 @@ class AppConfig {
     "agents": {"defaults": {"workspace": "~/.openclaw/workspace", "model": {"primary": ""}, "models": {}, "compaction": {"mode": "safeguard"}}, "list": [{"id": "main", "name": "Default"}]},
     "messages": {"tts": {"auto": "off", "provider": "elevenlabs"}},
     "channels": {
-      "whatsapp": {"enabled": true, "dmPolicy": "pairing", "selfChatMode": false, "mediaMaxMb": 50, "allowFrom": [], "configWrites": true, "ackReaction": {"emoji": "👀", "direct": true, "group": "mentions"}},
-      "telegram": {"enabled": true, "botToken": "", "dmPolicy": "pairing", "streamMode": "partial", "allowFrom": [], "capabilities": {"inlineButtons": "allowlist"}},
-      "feishu": {"enabled": false, "domain": "feishu", "accounts": {"main": {"appId": "", "appSecret": ""}}, "dmPolicy": "pairing"}
+      "whatsapp": {"enabled": true, "dmPolicy": "pairing", "allowFrom": [], "groupPolicy": "allowlist", "groupAllowFrom": [], "groups": {"*": {"requireMention": true}}},
+      "telegram": {"enabled": true, "botToken": "", "allowFrom": [], "groupPolicy": "allowlist", "groupAllowFrom": [], "groups": {"*": {"requireMention": true}}},
+      "feishu": {"enabled": false, "domain": "feishu", "accounts": {"main": {"appId": "", "appSecret": ""}}, "dmPolicy": "pairing"},
+      "discord": {"enabled": false, "token": "", "dm": {"enabled": true, "allowFrom": []}, "guilds": {}},
+      "slack": {"enabled": false, "botToken": "", "appToken": "", "channels": {}, "dm": {"enabled": true, "allowFrom": []}, "slashCommand": {"enabled": true, "name": "openclaw", "ephemeral": true}},
+      "imessage": {"enabled": false, "cliPath": "/usr/local/bin/imsg", "dbPath": "~/Library/Messages/chat.db", "allowFrom": []}
     },
     "gateway": {"port": 18789},
     "models": {"providers": {}}
@@ -988,9 +1084,31 @@ class _DashboardPageState extends State<DashboardPage> {
   final FocusNode _cmdFocus = FocusNode();
   final List<String> _cmdHistory = [];
   int _cmdHistoryIdx = -1;
+  Timer? _uptimeTimer;
+  int _tokenRefreshCounter = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _uptimeTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() {});
+      // 每 30 秒刷新一次 token 用量
+      _tokenRefreshCounter++;
+      if (_tokenRefreshCounter >= 30) {
+        _tokenRefreshCounter = 0;
+        context.read<LauncherProvider>().refreshTokenUsage();
+      }
+    });
+    // 首次进入立即刷新一次
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<LauncherProvider>().refreshTokenUsage();
+    });
+  }
 
   @override
   void dispose() {
+    _uptimeTimer?.cancel();
     _cmdController.dispose();
     _cmdFocus.dispose();
     super.dispose();
@@ -1055,75 +1173,26 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
                 child: Column(
                   children: [
+                    // 第一行
                     Row(
                       children: [
-                        _StatusItem(icon: Icons.bolt, label: "端口", value: launcher.currentPort),
-                        const SizedBox(width: 16),
-                        _StatusItem(icon: Icons.memory, label: "进程 ID", value: launcher.currentPid),
-                        const SizedBox(width: 16),
-                        _StatusItem(icon: Icons.router, label: "Node", value: launcher.isNodeConnected ? "已连接" : "--"),
+                        Expanded(child: _StatusItem(icon: Icons.bolt, label: "端口", value: launcher.currentPort)),
+                        const SizedBox(width: 12),
+                        Expanded(child: _StatusItem(icon: Icons.memory, label: "进程 ID", value: launcher.currentPid)),
+                        const SizedBox(width: 12),
+                        Expanded(child: _StatusItem(icon: Icons.storage, label: "版本", value: launcher.versionNumber)),
                       ],
                     ),
-                    const SizedBox(height: 16),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF252525) : Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Wrap(
-                        alignment: WrapAlignment.spaceBetween,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        spacing: 12,
-                        runSpacing: 10,
-                        children: [
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.storage, size: 14, color: Colors.grey),
-                              const SizedBox(width: 6),
-                              const Text("版本  ", style: TextStyle(color: Colors.grey, fontSize: 12)),
-                              Text(launcher.versionNumber, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color)),
-                              if (launcher.remoteVersion.isNotEmpty && launcher.remoteVersion != launcher.versionNumber) ...[
-                                const SizedBox(width: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(color: Colors.orange, borderRadius: BorderRadius.circular(4)),
-                                  child: Text("New: ${launcher.remoteVersion}", style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-                                ),
-                              ],
-                            ],
-                          ),
-                          if (launcher.remoteVersion.isNotEmpty && launcher.remoteVersion != launcher.versionNumber)
-                            SizedBox(
-                              height: 28,
-                              child: FilledButton.icon(
-                                onPressed: () => launcher.updateCore(),
-                                icon: const Icon(Icons.system_update, size: 14),
-                                label: const Text("立即更新", style: TextStyle(fontSize: 11)),
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: Colors.orange,
-                                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                                ),
-                              ),
-                            )
-                          else
-                            SizedBox(
-                              height: 28,
-                              child: OutlinedButton.icon(
-                                onPressed: () => launcher.checkForUpdates(),
-                                icon: const Icon(Icons.update, size: 14),
-                                label: const Text("检查更新", style: TextStyle(fontSize: 11)),
-                                style: OutlinedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
+                    const SizedBox(height: 12),
+                    // 第二行
+                    Row(
+                      children: [
+                        Expanded(child: _StatusItem(icon: Icons.router, label: "Node", value: launcher.isNodeConnected ? "已连接" : "--")),
+                        const SizedBox(width: 12),
+                        Expanded(child: _StatusItem(icon: Icons.timer_outlined, label: "运行时间", value: launcher.uptime)),
+                        const SizedBox(width: 12),
+                        Expanded(child: _StatusItem(icon: Icons.token, label: "已用 Tokens", value: launcher.tokenUsageDisplay)),
+                      ],
                     ),
                   ],
                 ),
@@ -1131,19 +1200,22 @@ class _DashboardPageState extends State<DashboardPage> {
               const SizedBox(height: 16),
               _SectionCard(
                 title: "快捷操作",
-                child: Row(
+                child: Wrap(
+                  spacing: 16,
+                  runSpacing: 16,
                   children: [
                     _DashboardBtn(
                       label: "启动", icon: Icons.play_arrow,
                       color: const Color(0xFF386A20), iconColor: const Color(0xFFB8F397),
                       onTap: isRunning ? null : () => launcher.startServices(),
                     ),
-                    const SizedBox(width: 16),
                     _DashboardBtn(label: "停止", icon: Icons.stop, color: null, iconColor: const Color.fromARGB(255, 0, 0, 0), onTap: !isRunning ? null : () => launcher.stopAll()),
-                    const SizedBox(width: 16),
                     _DashboardBtn(label: "WebUI", icon: Icons.language, color: null, iconColor: Colors.orange, onTap: isRunning ? () => launcher.openWebUI() : null),
-                    const SizedBox(width: 16),
                     _DashboardBtn(label: "重启", icon: Icons.refresh, color: null, iconColor: Colors.purpleAccent, onTap: () { launcher.stopAll(); Future.delayed(const Duration(seconds: 2), () => launcher.startServices()); }),
+                    if (launcher.remoteVersion.isNotEmpty && launcher.remoteVersion != launcher.versionNumber)
+                      _DashboardBtn(label: "更新", icon: Icons.system_update, color: const Color(0xFFB45309), iconColor: const Color(0xFFFFD43B), onTap: () => launcher.updateCore())
+                    else
+                      _DashboardBtn(label: "检查更新", icon: Icons.update, color: null, iconColor: Colors.blueGrey, onTap: () => launcher.checkForUpdates()),
                   ],
                 ),
               ),
@@ -1312,25 +1384,23 @@ class _StatusItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF252525) : Colors.grey.shade100,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: [
-              Icon(icon, size: 14, color: Colors.grey),
-              const SizedBox(width: 6),
-              Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-            ]),
-            const SizedBox(height: 8),
-            Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color)),
-          ],
-        ),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF252525) : Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(icon, size: 14, color: Colors.grey),
+            const SizedBox(width: 6),
+            Flexible(child: Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12), overflow: TextOverflow.ellipsis)),
+          ]),
+          const SizedBox(height: 8),
+          Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color)),
+        ],
       ),
     );
   }
@@ -1351,7 +1421,8 @@ class _DashboardBtn extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
     final bgColor = color ?? (isDark ? const Color(0xFF252525) : Colors.white);
     
-    return Expanded(
+    return SizedBox(
+      width: 120,
       child: Opacity(
         opacity: onTap == null ? 0.5 : 1.0,
         child: Material(
@@ -1965,6 +2036,7 @@ class _ChannelsPageState extends State<ChannelsPage> {
     {"name": "Telegram", "icon": Icons.send, "desc": "Bot API", "configKey": "telegram"},
     {"name": "Feishu", "icon": Icons.work, "desc": "飞书/Lark 机器人", "configKey": "feishu"},
     {"name": "Discord", "icon": Icons.discord, "desc": "Bot Gateway", "configKey": "discord"},
+    {"name": "Slack", "icon": Icons.chat_bubble_outline, "desc": "Slack Bot", "configKey": "slack"},
     {"name": "iMessage", "icon": Icons.message, "desc": "macOS 本地集成", "configKey": "imessage"},
   ];
 
@@ -1974,6 +2046,7 @@ class _ChannelsPageState extends State<ChannelsPage> {
     {"name": "Telegram", "icon": Icons.send, "desc": "Bot API", "configKey": "telegram"},
     {"name": "Feishu", "icon": Icons.work, "desc": "飞书/Lark 机器人", "configKey": "feishu"},
     {"name": "Discord", "icon": Icons.discord, "desc": "Bot Gateway", "configKey": "discord"},
+    {"name": "Slack", "icon": Icons.chat_bubble_outline, "desc": "Slack Bot", "configKey": "slack"},
     {"name": "iMessage", "icon": Icons.message, "desc": "macOS 本地集成", "configKey": "imessage"},
   ];
 
@@ -2134,6 +2207,7 @@ class _ChannelsPageState extends State<ChannelsPage> {
       case "telegram": return const _TelegramConfigView();
       case "feishu": return const _FeishuConfigView();
       case "discord": return const _DiscordConfigView();
+      case "slack": return const _SlackConfigView();
       case "imessage": return const _IMessageConfigView();
       default: return const Center(child: Text("未知的渠道"));
     }
@@ -2149,28 +2223,12 @@ class _WhatsAppConfigView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cfg = context.watch<ConfigProvider>();
-    final launcher = context.watch<LauncherProvider>();
     final ws = cfg.config.get("channels.whatsapp") as Map? ?? {};
+    final groups = ws["groups"] as Map? ?? {};
     return ListView(children: [
       _SectionCard(
-          title: "WhatsApp 连接",
+          title: "私聊策略 (DM)",
           child: Column(children: [
-            const Text("点击下方按钮启动登录，并在终端扫码。", style: TextStyle(color: Colors.grey)),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-                icon: const Icon(Icons.qr_code),
-                label: const Text("启动登录"),
-                onPressed: () => launcher.runCommand("channels login")),
-          ])),
-      const SizedBox(height: 24),
-      _SectionCard(
-          title: "策略配置",
-          child: Column(children: [
-            _SwitchTile(
-                title: "启用",
-                value: ws["enabled"] ?? true,
-                onChanged: (v) => cfg.updateField("channels.whatsapp.enabled", v)),
-            const SizedBox(height: 16),
             _EnumDropdown(
                 label: "DM 策略",
                 value: ws["dmPolicy"] ?? "pairing",
@@ -2178,9 +2236,29 @@ class _WhatsAppConfigView extends StatelessWidget {
                 onChanged: (v) => cfg.updateField("channels.whatsapp.dmPolicy", v)),
             const SizedBox(height: 16),
             _StringListEditor(
-                label: "白名单 (AllowFrom)",
+                label: "DM 白名单 (AllowFrom)",
                 items: ws["allowFrom"] ?? [],
                 onChanged: (list) => cfg.updateField("channels.whatsapp.allowFrom", list)),
+          ])),
+      const SizedBox(height: 24),
+      _SectionCard(
+          title: "群聊策略 (Group)",
+          child: Column(children: [
+            _EnumDropdown(
+                label: "群聊策略",
+                value: ws["groupPolicy"] ?? "allowlist",
+                options: const ["allowlist", "open", "disabled"],
+                onChanged: (v) => cfg.updateField("channels.whatsapp.groupPolicy", v)),
+            const SizedBox(height: 16),
+            _StringListEditor(
+                label: "群聊白名单 (GroupAllowFrom)",
+                items: ws["groupAllowFrom"] ?? [],
+                onChanged: (list) => cfg.updateField("channels.whatsapp.groupAllowFrom", list)),
+            const SizedBox(height: 16),
+            _SwitchTile(
+                title: "群聊需要 @提及",
+                value: groups["*"]?["requireMention"] ?? true,
+                onChanged: (v) => cfg.updateField("channels.whatsapp.groups.*.requireMention", v)),
           ])),
     ]);
   }
@@ -2192,27 +2270,56 @@ class _TelegramConfigView extends StatelessWidget {
   Widget build(BuildContext context) {
     final cfg = context.watch<ConfigProvider>();
     final tg = cfg.config.get("channels.telegram") as Map? ?? {};
+    final groups = tg["groups"] as Map? ?? {};
     return ListView(children: [
       _SectionCard(
           title: "Bot Token",
-          child: _ConfigTextField(
-              label: "Token",
-              value: tg["botToken"] ?? "",
-              isSecret: true,
-              onChanged: (v) => cfg.updateField("channels.telegram.botToken", v))),
-      const SizedBox(height: 24),
-      _SectionCard(
-          title: "策略配置",
           child: Column(children: [
             _SwitchTile(
-                title: "启用",
+                title: "启用 Telegram 渠道",
                 value: tg["enabled"] ?? true,
                 onChanged: (v) => cfg.updateField("channels.telegram.enabled", v)),
             const SizedBox(height: 16),
+            _ConfigTextField(
+                label: "Bot Token",
+                value: tg["botToken"] ?? "",
+                isSecret: true,
+                onChanged: (v) => cfg.updateField("channels.telegram.botToken", v)),
+          ])),
+      const SizedBox(height: 24),
+      _SectionCard(
+          title: "私聊策略 (DM)",
+          child: Column(children: [
+            _EnumDropdown(
+                label: "DM 策略",
+                value: tg["dmPolicy"] ?? "pairing",
+                options: const ["pairing", "allowlist", "open"],
+                onChanged: (v) => cfg.updateField("channels.telegram.dmPolicy", v)),
+            const SizedBox(height: 16),
             _StringListEditor(
-                label: "允许的用户ID",
+                label: "DM 白名单 (AllowFrom User IDs)",
                 items: tg["allowFrom"] ?? [],
                 onChanged: (list) => cfg.updateField("channels.telegram.allowFrom", list)),
+          ])),
+      const SizedBox(height: 24),
+      _SectionCard(
+          title: "群聊策略 (Group)",
+          child: Column(children: [
+            _EnumDropdown(
+                label: "群聊策略",
+                value: tg["groupPolicy"] ?? "allowlist",
+                options: const ["allowlist", "open", "disabled"],
+                onChanged: (v) => cfg.updateField("channels.telegram.groupPolicy", v)),
+            const SizedBox(height: 16),
+            _StringListEditor(
+                label: "群聊白名单 (GroupAllowFrom)",
+                items: tg["groupAllowFrom"] ?? [],
+                onChanged: (list) => cfg.updateField("channels.telegram.groupAllowFrom", list)),
+            const SizedBox(height: 16),
+            _SwitchTile(
+                title: "群聊需要 @提及",
+                value: groups["*"]?["requireMention"] ?? true,
+                onChanged: (v) => cfg.updateField("channels.telegram.groups.*.requireMention", v)),
           ])),
     ]);
   }
@@ -2248,8 +2355,61 @@ class _FeishuConfigView extends StatelessWidget {
 // 7. Settings & Others
 // ==========================================
 
-class SettingsPage extends StatelessWidget {
+class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  static const _regPath = r'HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run';
+  static const _appName = 'OpenClawManager';
+  bool _autoStart = false;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAutoStart();
+  }
+
+  Future<void> _checkAutoStart() async {
+    if (!Platform.isWindows) { setState(() => _loading = false); return; }
+    try {
+      final res = await Process.run('reg', ['query', _regPath, '/v', _appName], runInShell: true);
+      setState(() {
+        _autoStart = res.exitCode == 0 && res.stdout.toString().contains(_appName);
+        _loading = false;
+      });
+    } catch (_) {
+      setState(() { _autoStart = false; _loading = false; });
+    }
+  }
+
+  Future<void> _toggleAutoStart(bool value) async {
+    if (!Platform.isWindows) return;
+    try {
+      if (value) {
+        final exePath = Platform.resolvedExecutable;
+        await Process.run('reg', ['add', _regPath, '/v', _appName, '/t', 'REG_SZ', '/d', '"$exePath"', '/f'], runInShell: true);
+      } else {
+        await Process.run('reg', ['delete', _regPath, '/v', _appName, '/f'], runInShell: true);
+      }
+      setState(() => _autoStart = value);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(value ? "已开启开机自启动" : "已关闭开机自启动"), duration: const Duration(seconds: 1)),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("操作失败: $e"), duration: const Duration(seconds: 2)),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
@@ -2259,6 +2419,16 @@ class SettingsPage extends StatelessWidget {
         segments: const [ButtonSegment(value: ThemeMode.system, label: Text('自动'), icon: Icon(Icons.brightness_auto)), ButtonSegment(value: ThemeMode.light, label: Text('亮色'), icon: Icon(Icons.light_mode)), ButtonSegment(value: ThemeMode.dark, label: Text('深色'), icon: Icon(Icons.dark_mode))],
         selected: {themeProvider.themeMode}, onSelectionChanged: (s) => themeProvider.setThemeMode(s.first),
       )),
+      const SizedBox(height: 24),
+      SwitchListTile(
+        title: const Text("开机自启动"),
+        subtitle: Text(_loading ? "检测中..." : (_autoStart ? "已开启 — 系统启动时自动运行" : "未开启")),
+        value: _autoStart,
+        onChanged: _loading ? null : _toggleAutoStart,
+        secondary: Icon(_autoStart ? Icons.check_circle : Icons.circle_outlined, color: _autoStart ? Colors.green : Colors.grey),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        tileColor: Theme.of(context).cardColor,
+      ),
       const SizedBox(height: 24),
       _SectionCard(title: "核心管理", child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text("当前版本: ${launcher.versionNumber}", style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -2986,6 +3156,73 @@ class _DiscordConfigView extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+// ==========================================
+// 新增：Slack 配置视图
+// ==========================================
+class _SlackConfigView extends StatelessWidget {
+  const _SlackConfigView();
+  @override
+  Widget build(BuildContext context) {
+    final cfg = context.watch<ConfigProvider>();
+    final slack = cfg.config.get("channels.slack") as Map? ?? {};
+    final dm = slack["dm"] as Map? ?? {};
+    final sc = slack["slashCommand"] as Map? ?? {};
+    return ListView(children: [
+      _SectionCard(
+          title: "Slack 认证",
+          child: Column(children: [
+            _SwitchTile(
+                title: "启用 Slack 渠道",
+                value: slack["enabled"] ?? false,
+                onChanged: (v) => cfg.updateField("channels.slack.enabled", v)),
+            const SizedBox(height: 16),
+            _ConfigTextField(
+                label: "Bot Token (xoxb-...)",
+                value: slack["botToken"] ?? "",
+                isSecret: true,
+                onChanged: (v) => cfg.updateField("channels.slack.botToken", v)),
+            _ConfigTextField(
+                label: "App Token (xapp-...)",
+                value: slack["appToken"] ?? "",
+                isSecret: true,
+                onChanged: (v) => cfg.updateField("channels.slack.appToken", v)),
+          ])),
+      const SizedBox(height: 24),
+      _SectionCard(
+          title: "私聊策略 (DM)",
+          child: Column(children: [
+            _SwitchTile(
+                title: "允许私聊",
+                value: dm["enabled"] ?? true,
+                onChanged: (v) => cfg.updateField("channels.slack.dm.enabled", v)),
+            const SizedBox(height: 16),
+            _StringListEditor(
+                label: "DM 白名单 (AllowFrom User IDs)",
+                items: dm["allowFrom"] ?? [],
+                onChanged: (list) => cfg.updateField("channels.slack.dm.allowFrom", list)),
+          ])),
+      const SizedBox(height: 24),
+      _SectionCard(
+          title: "Slash Command",
+          child: Column(children: [
+            _SwitchTile(
+                title: "启用 Slash Command",
+                value: sc["enabled"] ?? true,
+                onChanged: (v) => cfg.updateField("channels.slack.slashCommand.enabled", v)),
+            const SizedBox(height: 16),
+            _ConfigTextField(
+                label: "命令名称",
+                value: sc["name"] ?? "openclaw",
+                onChanged: (v) => cfg.updateField("channels.slack.slashCommand.name", v)),
+            _SwitchTile(
+                title: "仅自己可见 (Ephemeral)",
+                value: sc["ephemeral"] ?? true,
+                onChanged: (v) => cfg.updateField("channels.slack.slashCommand.ephemeral", v)),
+          ])),
+    ]);
   }
 }
 
