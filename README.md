@@ -115,7 +115,7 @@ openclaw onboard
 
 ## 📝 更新日志
 
-### v1.0.0 (Flutter 重构版)
+### v2.0.0 (Flutter 重构版)
 * 基于 Flutter 重构，跨平台支持
 * 新增 Token 使用量统计功能
 * 新增 Gateway 自动检测功能
