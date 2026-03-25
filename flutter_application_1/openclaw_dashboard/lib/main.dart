@@ -162,72 +162,58 @@ class LauncherProvider extends ChangeNotifier {
       return;
     }
     try {
-      final res = await Process.run(cliCmd!, ['status', '--usage'], runInShell: true);
-      if (res.exitCode == 0) {
-        final output = res.stdout.toString().trim();
-        _parseUsageTable(output);
+      final res = await Process.run(
+        'openclaw',
+        ['status', '--json'],
+        runInShell: true,
+      );
+      final output = res.stdout.toString();
+      _parseJsonStatus(output);
+      if (tokenUsageDisplay != "--") {
+        addLog("Token: $tokenUsageDisplay | Model: $currentModelDisplay", type: "SUCCESS");
       }
     } catch (e) {
-      // 静默失败
+      addLog("Token 查询异常: $e", type: "ERROR");
     }
     notifyListeners();
   }
 
-  void _parseUsageTable(String output) {
-    final lines = output.split('\n');
-    // 按 provider 分组：{ provider: { outputTokens, model } }
-    final Map<String, int> providerTokens = {};
-    final Map<String, String> providerModels = {};
-    
-    for (var line in lines) {
-      if (line.contains('───') || line.contains('Key') || line.trim().isEmpty) continue;
-      if (!line.contains('│')) continue;
+  void _parseJsonStatus(String jsonStr) {
+    try {
+      final data = jsonDecode(jsonStr) as Map<String, dynamic>;
+      final sessions = data['sessions'];
+      if (sessions == null) return;
       
-      final parts = line.split('│').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
-      if (parts.length < 5) continue;
+      final defaults = sessions['defaults'];
+      if (defaults != null && defaults['model'] != null) {
+        final model = defaults['model'].toString();
+        final parts = model.split('/');
+        currentModelDisplay = parts.length > 1 ? parts.last : model;
+      }
       
-      // parts: [Key, Kind, Age, Model, Tokens]
-      final model = parts[3];
-      final tokenStr = parts[4];
-      
-      // 提取 provider 名称
-      final provider = model.contains('/') ? model.split('/').first : model;
-      
-      // 解析 output tokens: "unknown/197k (?%)" → 197000
-      final match = RegExp(r'(\d+\.?\d*[KkMm]?)\s*/\s*(\d+\.?\d*[KkMm]?)').firstMatch(tokenStr);
-      if (match != null) {
-        final outTokens = _parseTokenNumber(match.group(2) ?? "0");
-        // 同一 provider 取最大值（避免重复 session 导致重复计算）
-        if (!providerTokens.containsKey(provider) || outTokens > providerTokens[provider]!) {
-          providerTokens[provider] = outTokens;
-          providerModels[provider] = model;
+      int totalInput = 0;
+      int totalOutput = 0;
+      final recent = sessions['recent'] as List?;
+      if (recent != null) {
+        for (var session in recent) {
+          final input = session['inputTokens'];
+          final output = session['outputTokens'];
+          if (input is int) totalInput += input;
+          if (output is int) totalOutput += output;
         }
       }
+      
+      final totalTokens = totalInput + totalOutput;
+      if (totalTokens > 0) {
+        tokenUsageDisplay = totalTokens >= 1000000
+            ? "${(totalTokens / 1000000).toStringAsFixed(1)}M"
+            : "${(totalTokens / 1000).toStringAsFixed(1)}K";
+      } else {
+        tokenUsageDisplay = "--";
+      }
+    } catch (e) {
+      addLog("JSON 解析异常: $e", type: "ERROR");
     }
-    
-    // 汇总所有 provider 的 tokens
-    final totalTokens = providerTokens.values.fold(0, (sum, v) => sum + v);
-    if (totalTokens > 0) {
-      tokenUsageDisplay = totalTokens >= 1000000
-          ? "${(totalTokens / 1000000).toStringAsFixed(1)}M"
-          : "${(totalTokens / 1000).toStringAsFixed(1)}K";
-    } else {
-      tokenUsageDisplay = "--";
-    }
-    
-    // 当前模型取第一个
-    if (providerModels.isNotEmpty) {
-      final firstModel = providerModels.values.first;
-      final parts = firstModel.split('/');
-      currentModelDisplay = parts.length > 1 ? parts.last : firstModel;
-    }
-  }
-
-  int _parseTokenNumber(String s) {
-    s = s.trim().toUpperCase();
-    if (s.endsWith('M')) return ((double.tryParse(s.substring(0, s.length - 1)) ?? 0) * 1000000).toInt();
-    if (s.endsWith('K')) return ((double.tryParse(s.substring(0, s.length - 1)) ?? 0) * 1000).toInt();
-    return int.tryParse(s) ?? 0;
   }
   
   List<LogEntry> logs = [];
@@ -269,6 +255,14 @@ class LauncherProvider extends ChangeNotifier {
       versionNumber = "未安装";
       addLog("未检测到核心程序，请前往设置页进行安装。", type: "ERROR");
     }
+    
+    bool gatewayAlreadyRunning = await _waitForGatewayHttp();
+    if (gatewayAlreadyRunning && !isGatewayRunning) {
+      isGatewayRunning = true;
+      _serviceStartTime = DateTime.now();
+      addLog("检测到 Gateway 已在运行中", type: "INFO");
+    }
+    
     notifyListeners();
   }
 
@@ -348,6 +342,17 @@ class LauncherProvider extends ChangeNotifier {
     }
     if (isGatewayRunning) return;
 
+    bool alreadyRunning = await _waitForGatewayHttp();
+    if (alreadyRunning) {
+      addLog("Gateway 已在运行中，直接使用", type: "INFO");
+      isGatewayRunning = true;
+      _serviceStartTime = DateTime.now();
+      notifyListeners();
+      await Future.delayed(const Duration(milliseconds: 500));
+      await _startNode();
+      return;
+    }
+
     addLog(">>> 正在启动 Gateway 服务...", type: "CMD");
     
     try {
@@ -401,6 +406,8 @@ class LauncherProvider extends ChangeNotifier {
       if (out.contains("Connected") || out.contains("paired")) {
         isNodeConnected = true;
         addLog("Node 已成功连接至集群。", type: "SUCCESS");
+        // 完全启动后刷新 token 用量
+        refreshTokenUsage();
       } else {
         addLog("Node 状态检查: 未连接 (仍在重试...)", type: "DEBUG");
       }
@@ -1085,23 +1092,16 @@ class _DashboardPageState extends State<DashboardPage> {
   final List<String> _cmdHistory = [];
   int _cmdHistoryIdx = -1;
   Timer? _uptimeTimer;
-  int _tokenRefreshCounter = 0;
+  Timer? _tokenTimer;
 
   @override
   void initState() {
     super.initState();
     _uptimeTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted) return;
-      setState(() {});
-      // 每 30 秒刷新一次 token 用量
-      _tokenRefreshCounter++;
-      if (_tokenRefreshCounter >= 30) {
-        _tokenRefreshCounter = 0;
-        context.read<LauncherProvider>().refreshTokenUsage();
-      }
+      if (mounted) setState(() {});
     });
-    // 首次进入立即刷新一次
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    // 每 10 分钟刷新一次 token 用量
+    _tokenTimer = Timer.periodic(const Duration(minutes: 10), (_) {
       if (mounted) context.read<LauncherProvider>().refreshTokenUsage();
     });
   }
@@ -1109,6 +1109,7 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void dispose() {
     _uptimeTimer?.cancel();
+    _tokenTimer?.cancel();
     _cmdController.dispose();
     _cmdFocus.dispose();
     super.dispose();
@@ -1191,7 +1192,7 @@ class _DashboardPageState extends State<DashboardPage> {
                         const SizedBox(width: 12),
                         Expanded(child: _StatusItem(icon: Icons.timer_outlined, label: "运行时间", value: launcher.uptime)),
                         const SizedBox(width: 12),
-                        Expanded(child: _StatusItem(icon: Icons.token, label: "已用 Tokens", value: launcher.tokenUsageDisplay)),
+                        Expanded(child: _TokenStatusItem(value: launcher.tokenUsageDisplay)),
                       ],
                     ),
                   ],
@@ -1371,6 +1372,43 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
         ),
       ],
+    );
+  }
+}
+
+// Token 用量卡片（带气泡提示）
+class _TokenStatusItem extends StatelessWidget {
+  final String value;
+  const _TokenStatusItem({required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Tooltip(
+      message: "数据每 10 分钟自动更新一次\n由 openclaw status --usage 提供",
+      preferBelow: true,
+      waitDuration: const Duration(milliseconds: 300),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF252525) : Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              const Icon(Icons.token, size: 14, color: Colors.grey),
+              const SizedBox(width: 6),
+              const Text("已用 Tokens", style: TextStyle(color: Colors.grey, fontSize: 12)),
+              const SizedBox(width: 4),
+              const Icon(Icons.help_outline, size: 12, color: Colors.grey),
+            ]),
+            const SizedBox(height: 8),
+            Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color)),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -2386,11 +2424,24 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  String _getExePath() {
+    String exePath = Platform.resolvedExecutable;
+    if (!File(exePath).existsSync()) {
+      final exeName = 'openclaw_dashboard.exe';
+      final currentDir = Directory.current.path;
+      final altPath = '$currentDir\\$exeName';
+      if (File(altPath).existsSync()) {
+        exePath = altPath;
+      }
+    }
+    return exePath;
+  }
+
   Future<void> _toggleAutoStart(bool value) async {
     if (!Platform.isWindows) return;
     try {
       if (value) {
-        final exePath = Platform.resolvedExecutable;
+        final exePath = _getExePath();
         await Process.run('reg', ['add', _regPath, '/v', _appName, '/t', 'REG_SZ', '/d', '"$exePath"', '/f'], runInShell: true);
       } else {
         await Process.run('reg', ['delete', _regPath, '/v', _appName, '/f'], runInShell: true);
