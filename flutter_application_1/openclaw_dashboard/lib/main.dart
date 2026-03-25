@@ -45,50 +45,6 @@ class OpenClawApp extends StatelessWidget {
     const primaryBlue = Color(0xFF2979FF); // 深色模式下的亮蓝
     const primaryBlueLight = Color(0xFF0078D4); // 亮色模式下的标准蓝
 
-    // 统一的文本选择右键菜单
-    Widget _buildContextMenu(BuildContext context, EditableTextState editableTextState) {
-      return AdaptiveTextSelectionToolbar(
-        anchors: editableTextState.contextMenuAnchors,
-        children: [
-          TextSelectionToolbarTextButton(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            onPressed: () {
-              editableTextState.selectAll();
-              editableTextState.hideContextMenu();
-            },
-            child: const Text("全选"),
-          ),
-          TextSelectionToolbarTextButton(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            onPressed: () {
-              editableTextState.copySelection(SelectionChangedCause.toolbar);
-              editableTextState.hideContextMenu();
-            },
-            child: const Text("复制"),
-          ),
-          TextSelectionToolbarTextButton(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            onPressed: () {
-              editableTextState.cutSelection(SelectionChangedCause.toolbar);
-              editableTextState.hideContextMenu();
-            },
-            child: const Text("剪切"),
-          ),
-          TextSelectionToolbarTextButton(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            onPressed: () async {
-              final data = await Clipboard.getData(Clipboard.kTextPlain);
-              if (data?.text != null) {
-                editableTextState.insertText(data!.text!);
-              }
-              editableTextState.hideContextMenu();
-            },
-            child: const Text("粘贴"),
-          ),
-        ],
-      );
-    }
-
     return MaterialApp(
       title: 'OpenClaw Manager',
       debugShowCheckedModeBanner: false,
@@ -119,9 +75,6 @@ class OpenClawApp extends StatelessWidget {
             foregroundColor: Colors.white,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
-        ),
-        textSelectionThemeData: TextSelectionThemeData(
-          contextMenuBuilder: _buildContextMenu,
         ),
       ),
 
@@ -154,9 +107,6 @@ class OpenClawApp extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
-        ),
-        textSelectionThemeData: TextSelectionThemeData(
-          contextMenuBuilder: _buildContextMenu,
         ),
       ),
       home: const MainLayout(),
@@ -194,6 +144,11 @@ class LauncherProvider extends ChangeNotifier {
 
   LauncherProvider() {
     _initFullCheck();
+  }
+
+  void clearLogs() {
+    logs.clear();
+    notifyListeners();
   }
 
   void addLog(String msg, {String type = "INFO"}) {
@@ -557,7 +512,8 @@ class AppConfig {
   Map<String, dynamic> _data = {};
   AppConfig(this._data);
   factory AppConfig.defaultConfig() => AppConfig({
-    "agents": {"defaults": {"workspace": "~/.openclaw/workspace", "model": {"primary": ""}, "imageModel": {"primary": ""}, "thinkingDefault": "off", "sandbox": {"mode": "non-main"}}, "list": [{"id": "main", "name": "Default"}]},
+    "auth": {"profiles": {}},
+    "agents": {"defaults": {"workspace": "~/.openclaw/workspace", "model": {"primary": ""}, "models": {}, "compaction": {"mode": "safeguard"}}, "list": [{"id": "main", "name": "Default"}]},
     "messages": {"tts": {"auto": "off", "provider": "elevenlabs"}},
     "channels": {
       "whatsapp": {"enabled": true, "dmPolicy": "pairing", "selfChatMode": false, "mediaMaxMb": 50, "allowFrom": [], "configWrites": true, "ackReaction": {"emoji": "👀", "direct": true, "group": "mentions"}},
@@ -589,8 +545,10 @@ class AppConfig {
 
 class ConfigProvider extends ChangeNotifier {
   AppConfig config = AppConfig.defaultConfig();
+  Map<String, dynamic> authProfiles = {};  // 从 auth-profiles.json 加载
   String _statusMessage = "Ready";
   late File _configFile;
+  late File _authFile;
   String get statusMessage => _statusMessage;
   ConfigProvider() { _init(); }
   String get _homePath => Platform.environment[Platform.isWindows ? 'UserProfile' : 'HOME'] ?? '.';
@@ -598,7 +556,9 @@ class ConfigProvider extends ChangeNotifier {
     final dir = Directory(p.join(_homePath, '.openclaw'));
     if (!await dir.exists()) await dir.create(recursive: true);
     _configFile = File(p.join(dir.path, 'openclaw.json'));
+    _authFile = File(p.join(dir.path, 'agents', 'main', 'agent', 'auth-profiles.json'));
     await loadConfig();
+    await loadAuthProfiles();
   }
   Future<void> loadConfig() async {
     try {
@@ -611,6 +571,53 @@ class ConfigProvider extends ChangeNotifier {
     notifyListeners();
   }
   void updateField(String path, dynamic value) { config.set(path, value); notifyListeners(); }
+
+  // === Auth Profiles (auth-profiles.json) ===
+  Future<void> loadAuthProfiles() async {
+    try {
+      if (await _authFile.exists()) {
+        final data = jsonDecode(await _authFile.readAsString());
+        authProfiles = Map<String, dynamic>.from(data["profiles"] as Map? ?? {});
+      }
+    } catch (e) { _statusMessage = "加载认证配置失败"; }
+    notifyListeners();
+  }
+
+  Future<void> saveAuthProfiles() async {
+    try {
+      // 读取原始文件保留 lastGood 和 usageStats
+      Map<String, dynamic> fullData = {"version": 1, "profiles": {}, "lastGood": {}, "usageStats": {}};
+      if (await _authFile.exists()) {
+        fullData = Map<String, dynamic>.from(jsonDecode(await _authFile.readAsString()));
+      }
+      fullData["profiles"] = authProfiles;
+      // 更新 lastGood
+      final lastGood = Map<String, dynamic>.from(fullData["lastGood"] as Map? ?? {});
+      for (var key in authProfiles.keys) {
+        final parts = key.split(":");
+        if (parts.length == 2) lastGood[parts[0]] = key;
+      }
+      fullData["lastGood"] = lastGood;
+      await _authFile.writeAsString(const JsonEncoder.withIndent('  ').convert(fullData));
+      _statusMessage = "认证配置已保存";
+    } catch (e) { _statusMessage = "保存认证配置失败: $e"; }
+    notifyListeners();
+  }
+
+  void addAuthProfile(String key, Map<String, dynamic> profile) {
+    authProfiles[key] = profile;
+    saveAuthProfiles();
+  }
+
+  void removeAuthProfile(String key) {
+    authProfiles.remove(key);
+    saveAuthProfiles();
+  }
+
+  void updateAuthProfile(String key, Map<String, dynamic> profile) {
+    authProfiles[key] = profile;
+    saveAuthProfiles();
+  }
 }
 
 class FileProvider extends ChangeNotifier {
@@ -998,8 +1005,7 @@ class _DashboardPageState extends State<DashboardPage> {
     
     // 内置 clear 命令
     if (cmd == "clear" || cmd == "cls") {
-      launcher.logs.clear();
-      launcher.notifyListeners();
+      launcher.clearLogs();
       return;
     }
     launcher.executeShellCommand(cmd);
@@ -1174,8 +1180,7 @@ class _DashboardPageState extends State<DashboardPage> {
                         height: 24,
                         child: TextButton.icon(
                           onPressed: () {
-                            launcher.logs.clear();
-                            launcher.notifyListeners();
+                            launcher.clearLogs();
                           },
                           icon: const Icon(Icons.delete_sweep, size: 13),
                           label: const Text("清空", style: TextStyle(fontSize: 11)),
@@ -1376,32 +1381,45 @@ class _DashboardBtn extends StatelessWidget {
 }
 
 // ==========================================
-// 5. AI 配置页面 (完全重构)
+// 5. AI 配置页面 (基于 OpenClaw 文档重构)
 // ==========================================
+
+// --- 支持的 Provider 预设 ---
+const _providerPresets = <String, Map<String, String>>{
+  "openrouter":  {"name": "OpenRouter",  "base": "https://openrouter.ai/api/v1",  "api": "openai-completions"},
+  "openai":      {"name": "OpenAI",      "base": "https://api.openai.com/v1",     "api": "openai-completions"},
+  "anthropic":   {"name": "Anthropic",   "base": "https://api.anthropic.com",      "api": "anthropic-messages"},
+  "deepseek":    {"name": "DeepSeek",    "base": "https://api.deepseek.com/v1",   "api": "openai-completions"},
+  "moonshot":    {"name": "Moonshot",    "base": "https://api.moonshot.cn/v1",    "api": "openai-completions"},
+  "minimax":     {"name": "Minimax",     "base": "https://api.minimax.chat/v1",   "api": "openai-completions"},
+  "mistral":     {"name": "Mistral",     "base": "https://api.mistral.ai/v1",     "api": "openai-completions"},
+  "gemini":      {"name": "Gemini",      "base": "https://generativelanguage.googleapis.com/v1beta", "api": "openai-completions"},
+  "together":    {"name": "Together",    "base": "https://api.together.xyz/v1",   "api": "openai-completions"},
+  "xai":         {"name": "xAI",         "base": "https://api.x.ai/v1",           "api": "openai-completions"},
+  "huggingface": {"name": "HuggingFace", "base": "https://api-inference.huggingface.co/v1", "api": "openai-completions"},
+  "custom":      {"name": "Custom",      "base": "",                               "api": "openai-completions"},
+};
 
 class AIConfigPage extends StatefulWidget {
   const AIConfigPage({super.key});
-
   @override
   State<AIConfigPage> createState() => _AIConfigPageState();
 }
 
 class _AIConfigPageState extends State<AIConfigPage> {
-  // selectionId: "core" 代表核心设置，其他字符串代表 Provider 的 ID
-  String _selectionId = "core"; 
+  // 选中项: "core" | "auth:profileKey" | "models"
+  String _selection = "core";
 
   @override
   Widget build(BuildContext context) {
     final cfg = context.watch<ConfigProvider>();
-    final modelsConfig = cfg.config.get("models") as Map? ?? {};
-    final providers = Map<String, dynamic>.from(modelsConfig["providers"] as Map? ?? {});
-
+    final authProfiles = cfg.authProfiles;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final sidebarBg = isDark ? const Color(0xFF111111) : Colors.white; // 二级侧边栏背景
+    final sidebarBg = isDark ? const Color(0xFF111111) : Colors.white;
 
     return Row(
       children: [
-        // --- 左侧：二级侧边栏 ---
+        // --- 左侧二级侧边栏 ---
         Container(
           width: 260,
           color: sidebarBg,
@@ -1409,311 +1427,507 @@ class _AIConfigPageState extends State<AIConfigPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text("全局设置", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
-              const SizedBox(height: 8),
-              _SecondarySidebarItem(
-                icon: Icons.hub,
-                title: "核心模型路由",
-                subtitle: "Primary & Fallback",
-                isSelected: _selectionId == "core",
-                onTap: () => setState(() => _selectionId = "core"),
-              ),
-              const SizedBox(height: 24),
-              
-              // Provider 列表头 + 添加按钮
+              // 认证配置
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text("模型提供商", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+                  const Text("认证配置", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
                   IconButton(
                     icon: const Icon(Icons.add_circle_outline, size: 16),
-                    tooltip: "添加提供商",
-                    onPressed: () => _showAddProviderDialog(context, providers, cfg),
-                  )
+                    tooltip: "添加 Provider",
+                    onPressed: () => _showAddAuthProfileDialog(cfg, authProfiles),
+                  ),
                 ],
               ),
+              const SizedBox(height: 4),
+              // Auth profile 列表
+              ...authProfiles.entries.map((entry) {
+                final profile = Map<String, dynamic>.from(entry.value);
+                final provider = profile["provider"] ?? entry.key;
+                final preset = _providerPresets[provider] ?? _providerPresets["custom"]!;
+                return _SecondarySidebarItem(
+                  icon: Icons.vpn_key_outlined,
+                  title: preset["name"] ?? provider,
+                  subtitle: provider,
+                  isSelected: _selection == "auth:${entry.key}",
+                  onTap: () => setState(() => _selection = "auth:${entry.key}"),
+                );
+              }),
+              const SizedBox(height: 24),
+              // 模型配置
+              const Text("模型配置", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
               const SizedBox(height: 8),
-              
-              // 动态 Provider 列表
+              _SecondarySidebarItem(
+                icon: Icons.hub_outlined,
+                title: "核心设置",
+                subtitle: "主模型、工作区",
+                isSelected: _selection == "core",
+                onTap: () => setState(() => _selection = "core"),
+              ),
+              const SizedBox(height: 4),
+              _SecondarySidebarItem(
+                icon: Icons.model_training_outlined,
+                title: "模型列表",
+                subtitle: "管理可用模型",
+                isSelected: _selection == "models",
+                onTap: () => setState(() => _selection = "models"),
+              ),
+            ],
+          ),
+        ),
+
+        // --- 右侧内容区 ---
+        Expanded(
+          child: Column(
+            children: [
+              _buildHeader(cfg, authProfiles),
               Expanded(
                 child: ListView(
-                  children: providers.keys.map((key) {
-                    final pData = providers[key] as Map;
-                    return _SecondarySidebarItem(
-                      icon: Icons.dns_outlined,
-                      title: key,
-                      subtitle: pData['api'] ?? 'openai',
-                      isSelected: _selectionId == key,
-                      onTap: () => setState(() => _selectionId = key),
-                    );
-                  }).toList(),
+                  padding: const EdgeInsets.all(32),
+                  children: [_buildContent(cfg, authProfiles)],
                 ),
               ),
             ],
           ),
         ),
-
-        // --- 右侧：内容详情区 ---
-        Expanded(
-          child: Column(
-            children: [
-               _HeaderBar(
-                 title: _selectionId == "core" ? "核心路由" : "提供商: $_selectionId", 
-                 subtitle: _selectionId == "core" ? "配置系统的默认模型与视觉模型" : "配置 BaseURL 与 API Key"
-               ),
-               Expanded(
-                 child: ListView(
-                   padding: const EdgeInsets.all(32),
-                   children: [
-                     if (_selectionId == "core")
-                       _buildCoreSettings(context)
-                     else if (providers.containsKey(_selectionId))
-                       _buildProviderSettings(context, _selectionId, providers[_selectionId], cfg)
-                     else
-                       const Center(child: Text("未找到配置"))
-                   ],
-                 ),
-               )
-            ],
-          ),
-        ),
       ],
     );
   }
 
-  // 构建核心设置视图
-  Widget _buildCoreSettings(BuildContext context) {
-    final cfg = context.read<ConfigProvider>();
+  // 根据选中项构建标题栏
+  Widget _buildHeader(ConfigProvider cfg, Map authProfiles) {
+    if (_selection == "core") {
+      return const _HeaderBar(title: "核心设置", subtitle: "配置主模型、工作区目录、压缩策略");
+    }
+    if (_selection == "models") {
+      return const _HeaderBar(title: "模型列表", subtitle: "管理所有已配置的模型及其参数");
+    }
+    // auth profile
+    final profileKey = _selection.substring(5);
+    final profile = Map<String, dynamic>.from(authProfiles[profileKey] ?? {});
+    final provider = profile["provider"] ?? profileKey;
+    final preset = _providerPresets[provider] ?? _providerPresets["custom"]!;
+    return _HeaderBar(title: preset["name"] ?? provider, subtitle: "配置认证信息");
+  }
+
+  // 根据选中项构建内容
+  Widget _buildContent(ConfigProvider cfg, Map authProfiles) {
+    if (_selection == "core") return _buildCoreSettings(cfg);
+    if (_selection == "models") return _buildModelsList(cfg);
+    // auth profile
+    final profileKey = _selection.substring(5);
+    final profile = Map<String, dynamic>.from(authProfiles[profileKey] ?? {});
+    return _buildAuthProfileEditor(cfg, profileKey, profile, authProfiles);
+  }
+
+  // ============================
+  // 核心设置 (主模型 + 工作区)
+  // ============================
+  Widget _buildCoreSettings(ConfigProvider cfg) {
     final agentDefaults = cfg.config.get("agents.defaults") as Map? ?? {};
-    final modelDefaults = agentDefaults["model"] as Map? ?? {};
-    final imageDefaults = agentDefaults["imageModel"] as Map? ?? {};
+    final modelPrimary = (agentDefaults["model"] as Map? ?? {})["primary"] ?? "";
+    final workspace = agentDefaults["workspace"] ?? "";
 
     return Column(
       children: [
         _SectionCard(
-          title: "默认模型",
+          title: "主模型",
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _ConfigTextField(
-                label: "主模型 ID (Primary)",
-                value: modelDefaults["primary"] ?? "",
+                label: "主模型 ID",
+                value: modelPrimary,
                 onChanged: (v) => cfg.updateField("agents.defaults.model.primary", v),
               ),
-              _ConfigTextField(
-                label: "视觉模型 ID (Vision)",
-                value: imageDefaults["primary"] ?? "",
-                onChanged: (v) => cfg.updateField("agents.defaults.imageModel.primary", v),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withAlpha(15),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue.withAlpha(40)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.info_outline, size: 14, color: Colors.blue),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        "格式: provider/model-id:variant\n示例: openrouter/auto, deepseek/deepseek-chat",
+                        style: TextStyle(fontSize: 11, color: Colors.blue),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
         ),
         const SizedBox(height: 24),
         _SectionCard(
-          title: "备用策略",
-          child: _StringListEditor(
-            label: "回退模型列表 (Fallbacks)",
-            items: modelDefaults["fallbacks"] ?? [],
-            onChanged: (list) => cfg.updateField("agents.defaults.model.fallbacks", list),
+          title: "工作区",
+          child: _ConfigTextField(
+            label: "工作区路径",
+            value: workspace,
+            onChanged: (v) => cfg.updateField("agents.defaults.workspace", v),
+          ),
+        ),
+        const SizedBox(height: 24),
+        _SectionCard(
+          title: "压缩策略",
+          child: DropdownButtonFormField<String>(
+            initialValue: agentDefaults["compaction"]?["mode"] ?? "safeguard",
+            decoration: const InputDecoration(labelText: "压缩模式", isDense: true),
+            items: const [
+              DropdownMenuItem(value: "safeguard", child: Text("Safeguard (安全模式)")),
+              DropdownMenuItem(value: "auto", child: Text("Auto (自动)")),
+            ],
+            onChanged: (v) => cfg.updateField("agents.defaults.compaction.mode", v),
           ),
         ),
       ],
     );
   }
 
-  // 构建 Provider 详情视图
-  Widget _buildProviderSettings(BuildContext context, String id, Map data, ConfigProvider cfg) {
-    // 这里复用原本的逻辑，但展开为平铺视图
+  // ============================
+  // 模型列表管理
+  // ============================
+  Widget _buildModelsList(ConfigProvider cfg) {
+    final agentDefaults = cfg.config.get("agents.defaults") as Map? ?? {};
+    final modelsMap = Map<String, dynamic>.from(agentDefaults["models"] as Map? ?? {});
+
     return Column(
       children: [
-        _SectionCard(
-          title: "连接凭证",
-          trailing: IconButton(
-            icon: const Icon(Icons.delete, color: Colors.red),
-            onPressed: () {
-               final newMap = Map<String, dynamic>.from(cfg.config.get("models.providers"));
-               newMap.remove(id);
-               cfg.updateField("models.providers", newMap);
-               setState(() => _selectionId = "core");
+        // 操作栏
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text("已配置模型 (${modelsMap.length})", style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+            TextButton.icon(
+              onPressed: () => _showAddModelDialog(cfg, modelsMap),
+              icon: const Icon(Icons.add, size: 16),
+              label: const Text("添加模型"),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (modelsMap.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1A1A1A) : Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Center(child: Text("暂无模型，请点击「添加模型」", style: TextStyle(color: Colors.grey))),
+          ),
+        // 模型卡片列表
+        ...modelsMap.entries.map((entry) {
+          final modelId = entry.key;
+          final modelData = Map<String, dynamic>.from(entry.value);
+          return _ModelCard(
+            modelId: modelId,
+            alias: modelData["alias"] ?? "",
+            maxTokens: modelData["maxTokens"],
+            temperature: modelData["temperature"],
+            isPrimary: ((cfg.config.get("agents.defaults.model") as Map? ?? {})["primary"] ?? "") == modelId,
+            onSetPrimary: () {
+              cfg.updateField("agents.defaults.model.primary", modelId);
+              setState(() {});
             },
-          ),
-          child: Column(
-            children: [
-              _ConfigTextField(
-                label: "Base URL", 
-                value: data["baseUrl"] ?? "", 
-                onChanged: (v) => cfg.updateField("models.providers.$id.baseUrl", v)
-              ),
-              _ConfigTextField(
-                label: "API Key", 
-                value: data["apiKey"] ?? "", 
-                isSecret: true, 
-                onChanged: (v) => cfg.updateField("models.providers.$id.apiKey", v)
-              ),
-              _ConfigTextField(
-                label: "API Type", 
-                value: data["api"] ?? "openai-completions", 
-                onChanged: (v) => cfg.updateField("models.providers.$id.api", v)
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-        _SectionCard(
-          title: "模型映射",
-          child: _ModelListEditor(
-            models: List<Map<String, dynamic>>.from((data["models"] as List? ?? []).map((e) => Map<String, dynamic>.from(e))), 
-            onChanged: (list) => cfg.updateField("models.providers.$id.models", list)
-          ),
-        ),
+            onEdit: () => _showEditModelDialog(cfg, modelId, modelData, modelsMap),
+            onRemove: () {
+              modelsMap.remove(modelId);
+              cfg.updateField("agents.defaults.models", modelsMap);
+              setState(() {});
+            },
+          );
+        }),
       ],
     );
   }
 
-  void _showAddProviderDialog(BuildContext context, Map providers, ConfigProvider cfg) {
-    final ctrl = TextEditingController();
+  void _showAddModelDialog(ConfigProvider cfg, Map modelsMap) {
+    final idCtrl = TextEditingController();
+    final aliasCtrl = TextEditingController();
     showDialog(context: context, builder: (ctx) => AlertDialog(
-      title: const Text("添加提供商"),
-      content: TextField(controller: ctrl, decoration: const InputDecoration(labelText: "ID (如: deepseek, openai)")),
+      title: const Text("添加模型"),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(controller: idCtrl, decoration: const InputDecoration(labelText: "模型 ID (如 deepseek/deepseek-chat)")),
+          const SizedBox(height: 8),
+          TextField(controller: aliasCtrl, decoration: const InputDecoration(labelText: "别名 (可选)")),
+        ],
+      ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("取消")),
         FilledButton(onPressed: () {
-          final id = ctrl.text.trim();
-          if (id.isNotEmpty && !providers.containsKey(id)) {
-            // 直接更新 Config
-            cfg.updateField("models.providers.$id", {
-              "baseUrl": "https://api.example.com/v1", 
-              "apiKey": "", 
-              "api": "openai-completions", 
-              "models": []
-            });
-            setState(() => _selectionId = id);
+          final id = idCtrl.text.trim();
+          if (id.isNotEmpty) {
+            modelsMap[id] = {"alias": aliasCtrl.text.trim().isNotEmpty ? aliasCtrl.text.trim() : id};
+            cfg.updateField("agents.defaults.models", modelsMap);
+            setState(() {});
           }
           Navigator.pop(ctx);
-        }, child: const Text("添加"))
+        }, child: const Text("添加")),
       ],
     ));
   }
-}
 
-// ==========================================
-// 补全：AI 模型列表编辑器组件
-// ==========================================
+  void _showEditModelDialog(ConfigProvider cfg, String modelId, Map modelData, Map modelsMap) {
+    final aliasCtrl = TextEditingController(text: modelData["alias"] ?? "");
+    final maxTokensCtrl = TextEditingController(text: (modelData["maxTokens"] ?? "").toString());
+    final tempCtrl = TextEditingController(text: (modelData["temperature"] ?? "").toString());
 
-class _ModelListEditor extends StatelessWidget {
-  final List<Map<String, dynamic>> models;
-  final ValueChanged<List<Map<String, dynamic>>> onChanged;
-  const _ModelListEditor({required this.models, required this.onChanged});
-
-  void _addModel() {
-    final newList = List<Map<String, dynamic>>.from(models)
-      ..add({
-        "id": "new-model",
-        "name": "New Model",
-        "reasoning": false,
-        "contextWindow": 200000,
-        "maxTokens": 8192,
-        "input": ["text"]
-      });
-    onChanged(newList);
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: Text("编辑: $modelId"),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(controller: aliasCtrl, decoration: const InputDecoration(labelText: "别名")),
+          const SizedBox(height: 8),
+          TextField(controller: maxTokensCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: "最大 Tokens")),
+          const SizedBox(height: 8),
+          TextField(controller: tempCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: "温度 (0-2)")),
+        ],
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("取消")),
+        FilledButton(onPressed: () {
+          modelData["alias"] = aliasCtrl.text.trim();
+          final mt = int.tryParse(maxTokensCtrl.text.trim());
+          if (mt != null) modelData["maxTokens"] = mt;
+          final temp = double.tryParse(tempCtrl.text.trim());
+          if (temp != null) modelData["temperature"] = temp;
+          modelsMap[modelId] = modelData;
+          cfg.updateField("agents.defaults.models", modelsMap);
+          setState(() {});
+          Navigator.pop(ctx);
+        }, child: const Text("保存")),
+      ],
+    ));
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        const Text("模型列表", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-        TextButton.icon(
-            onPressed: _addModel,
-            icon: const Icon(Icons.add, size: 16),
-            label: const Text("添加模型")),
-      ]),
-      const SizedBox(height: 8),
-      if (models.isEmpty)
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 8.0),
-          child: Text("暂无模型映射，请点击添加。", style: TextStyle(color: Colors.grey, fontSize: 12)),
+  // ============================
+  // 认证配置编辑器
+  // ============================
+  Widget _buildAuthProfileEditor(ConfigProvider cfg, String profileKey, Map profile, Map authProfiles) {
+    final provider = profile["provider"] ?? profileKey;
+    final mode = profile["type"] ?? "api_key";
+    final apiKey = profile["key"] ?? "";
+    final preset = _providerPresets[provider] ?? _providerPresets["custom"]!;
+
+    return Column(
+      children: [
+        _SectionCard(
+          title: "认证信息",
+          trailing: IconButton(
+            icon: const Icon(Icons.delete, color: Colors.red),
+            tooltip: "删除此认证",
+            onPressed: () {
+              authProfiles.remove(profileKey);
+              cfg.saveAuthProfiles();
+              setState(() => _selection = "core");
+            },
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Provider 选择
+              DropdownButtonFormField<String>(
+                initialValue: provider,
+                decoration: const InputDecoration(labelText: "Provider", isDense: true),
+                items: _providerPresets.entries.map((e) =>
+                  DropdownMenuItem(value: e.key, child: Text("${e.value["name"]} (${e.key})"))
+                ).toList(),
+                onChanged: (v) {
+                  if (v == null) return;
+                  final newKey = "$v:default";
+                  final newProfile = {"provider": v, "type": mode, "key": apiKey};
+                  // 移除旧的，添加新的
+                  authProfiles.remove(profileKey);
+                  authProfiles[newKey] = newProfile;
+                  cfg.saveAuthProfiles();
+                  setState(() => _selection = "auth:$newKey");
+                },
+              ),
+              const SizedBox(height: 16),
+              // 认证模式
+              DropdownButtonFormField<String>(
+                initialValue: mode,
+                decoration: const InputDecoration(labelText: "认证模式", isDense: true),
+                items: const [
+                  DropdownMenuItem(value: "api_key", child: Text("API Key (直接配置)")),
+                  DropdownMenuItem(value: "env", child: Text("环境变量 (ENV)")),
+                  DropdownMenuItem(value: "ref", child: Text("Secrets Ref (高级)")),
+                ],
+                onChanged: (v) {
+                  profile["type"] = v ?? "api_key";
+                  authProfiles[profileKey] = profile;
+                  cfg.saveAuthProfiles();
+                  setState(() {});
+                },
+              ),
+              if (mode == "api_key") ...[
+                const SizedBox(height: 16),
+                _ConfigTextField(
+                  label: "API Key",
+                  value: apiKey,
+                  isSecret: true,
+                  onChanged: (v) {
+                    profile["key"] = v;
+                    authProfiles[profileKey] = profile;
+                    cfg.saveAuthProfiles();
+                  },
+                ),
+              ],
+              const SizedBox(height: 16),
+              // Base URL
+              _ConfigTextField(
+                label: "Base URL",
+                value: preset["base"] ?? "",
+                onChanged: (v) {}, // read-only display for reference
+              ),
+              const SizedBox(height: 8),
+              Text("API 类型: ${preset["api"]}", style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            ],
+          ),
         ),
-      ...models.asMap().entries.map((e) => _ModelEditCard(
-            data: e.value,
-            onUpdate: (v) {
-              final l = List<Map<String, dynamic>>.from(models);
-              l[e.key] = v;
-              onChanged(l);
-            },
-            onRemove: () {
-              final l = List<Map<String, dynamic>>.from(models);
-              l.removeAt(e.key);
-              onChanged(l);
-            },
-          )),
-    ]);
+      ],
+    );
+  }
+
+  // ============================
+  // 添加认证 Profile 对话框
+  // ============================
+  void _showAddAuthProfileDialog(ConfigProvider cfg, Map authProfiles) {
+    String selectedProvider = "openrouter";
+    final keyCtrl = TextEditingController(text: "default");
+
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx, setDialogState) {
+      return AlertDialog(
+        title: const Text("添加认证"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            DropdownButtonFormField<String>(
+              initialValue: selectedProvider,
+              decoration: const InputDecoration(labelText: "Provider", isDense: true),
+              items: _providerPresets.entries.map((e) =>
+                DropdownMenuItem(value: e.key, child: Text("${e.value["name"]} (${e.key})"))
+              ).toList(),
+              onChanged: (v) => setDialogState(() => selectedProvider = v ?? "openrouter"),
+            ),
+            const SizedBox(height: 12),
+            TextField(controller: keyCtrl, decoration: const InputDecoration(labelText: "Profile ID (如: default, production)", isDense: true)),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("取消")),
+          FilledButton(onPressed: () {
+            final id = keyCtrl.text.trim();
+            if (id.isNotEmpty) {
+              final profileKey = "$selectedProvider:$id";
+              authProfiles[profileKey] = {"provider": selectedProvider, "type": "api_key", "key": ""};
+              cfg.saveAuthProfiles();
+              setState(() => _selection = "auth:$profileKey");
+            }
+            Navigator.pop(ctx);
+          }, child: const Text("添加")),
+        ],
+      );
+    }));
   }
 }
 
-class _ModelEditCard extends StatelessWidget {
-  final Map<String, dynamic> data;
-  final ValueChanged<Map<String, dynamic>> onUpdate;
+// 模型卡片组件
+class _ModelCard extends StatelessWidget {
+  final String modelId;
+  final String alias;
+  final int? maxTokens;
+  final double? temperature;
+  final bool isPrimary;
+  final VoidCallback onSetPrimary;
+  final VoidCallback onEdit;
   final VoidCallback onRemove;
-  const _ModelEditCard({required this.data, required this.onUpdate, required this.onRemove});
+
+  const _ModelCard({
+    required this.modelId,
+    required this.alias,
+    this.maxTokens,
+    this.temperature,
+    required this.isPrimary,
+    required this.onSetPrimary,
+    required this.onEdit,
+    required this.onRemove,
+  });
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF252525) : Colors.grey.shade50,
-          borderRadius: BorderRadius.circular(8)),
-      child: Column(children: [
-        Row(children: [
-          Expanded(
-              child: TextField(
-                  controller: TextEditingController(text: data["id"]),
-                  decoration: const InputDecoration(
-                      labelText: "Model ID (e.g. gpt-4)", isDense: true, border: UnderlineInputBorder()),
-                  onChanged: (v) {
-                    data["id"] = v;
-                    data["name"] = v;
-                    onUpdate(data);
-                  })),
-          IconButton(
-              icon: const Icon(Icons.close, size: 16, color: Colors.red), onPressed: onRemove)
-        ]),
-        const SizedBox(height: 12),
-        Row(children: [
-          Expanded(
-              child: _SmallNumField(
-                  label: "Context",
-                  value: data["contextWindow"] ?? 200000,
-                  onChanged: (v) {
-                    data["contextWindow"] = v;
-                    onUpdate(data);
-                  })),
-          const SizedBox(width: 8),
-          Expanded(
-              child: _SmallNumField(
-                  label: "Tokens",
-                  value: data["maxTokens"] ?? 8192,
-                  onChanged: (v) {
-                    data["maxTokens"] = v;
-                    onUpdate(data);
-                  })),
-        ]),
-        const SizedBox(height: 8),
-        Row(children: [
-          Expanded(
-              child: CheckboxListTile(
-                  title: const Text("启用推理 (Reasoning)", style: TextStyle(fontSize: 12)),
-                  value: data["reasoning"] ?? false,
-                  onChanged: (v) {
-                    data["reasoning"] = v;
-                    onUpdate(data);
-                  },
-                  dense: true,
-                  contentPadding: EdgeInsets.zero)),
-        ])
-      ]),
+        color: isDark ? const Color(0xFF252525) : Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: isPrimary ? Border.all(color: Colors.blue, width: 1.5) : null,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              // 别名
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(child: Text(alias.isNotEmpty ? alias : modelId, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), overflow: TextOverflow.ellipsis)),
+                        if (isPrimary) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(color: Colors.blue, borderRadius: BorderRadius.circular(4)),
+                            child: const Text("主模型", style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(modelId, style: const TextStyle(fontSize: 12, color: Colors.grey, fontFamily: "Consolas")),
+                  ],
+                ),
+              ),
+              // 操作按钮
+              IconButton(
+                icon: Icon(isPrimary ? Icons.star : Icons.star_border, size: 18, color: isPrimary ? Colors.amber : null),
+                tooltip: isPrimary ? "当前主模型" : "设为主模型",
+                onPressed: isPrimary ? null : onSetPrimary,
+              ),
+              IconButton(icon: const Icon(Icons.edit, size: 18), tooltip: "编辑", onPressed: onEdit),
+              IconButton(icon: const Icon(Icons.delete, size: 18, color: Colors.red), tooltip: "删除", onPressed: onRemove),
+            ],
+          ),
+          if (maxTokens != null || temperature != null) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                if (maxTokens != null)
+                  Chip(label: Text("Tokens: $maxTokens", style: const TextStyle(fontSize: 11)), materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.compact),
+                if (temperature != null)
+                  Chip(label: Text("Temp: $temperature", style: const TextStyle(fontSize: 11)), materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.compact),
+              ],
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -1730,6 +1944,7 @@ class _SmallNumField extends StatelessWidget {
       decoration: InputDecoration(labelText: label, isDense: true),
       onChanged: (v) => onChanged(int.tryParse(v) ?? value));
 }
+
 
 // ==========================================
 // 6. 消息渠道 (二级侧边栏样式更新)
