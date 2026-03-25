@@ -38,20 +38,43 @@ flutter run
 
 ### 2. 首次使用
 
-1. 启动软件，程序会自动检测系统环境：
-    * 检测 Node.js 是否安装
-    * 检测 OpenClaw 核心是否安装
-    * 检测 Gateway 是否已运行
-2. 若未检测到核心，会提示前往设置页进行安装。
+#### 步骤一：安装 OpenClaw
+
+如果是第一次使用，请先安装 OpenClaw 核心组件：
+
+1. 打开终端（PowerShell 或 CMD）
+2. 运行以下命令安装 OpenClaw：
+```bash
+# Windows (PowerShell) - 推荐
+iwr -useb https://raw.githubusercontent.com/openclaw/openclaw/main/install.ps1 | iex
+
+# 或使用 npm 安装
+npm install -g openclaw
+```
+
+#### 步骤二：初始化配置
+
+安装完成后，通过终端进行初始配置：
+
+```bash
+openclaw onboard
+```
+
+此命令将引导您完成以下配置：
+* 登录/注册 OpenClaw 账户
+* 配置 API Key
+* 设置节点参数
+
+#### 步骤三：软件内配置
+
+完成终端配置后，启动 OpenClaw Launcher 进行软件内配置：
+
+1. 启动软件，程序会自动检测系统环境
+2. 在设置页配置相关功能（主题、开机自启等）
+3. 确认 Gateway 和 Node 状态正常
 
 <div align="center">
 <img src="images/install_wizard.png" alt="OpenClaw 安装向导界面" style="width: 70%; height: auto; border-radius: 20px; margin: 10px 0; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
-</div>
-
-3. **安装 OpenClaw**：在设置页点击安装按钮，推荐使用 **Windows (PowerShell)** 安装方式。
-
-<div align="center">
-<img src="images/install_success.png" alt="OpenClaw 安装成功提示" style="width: 70%; height: auto; border-radius: 20px; margin: 10px 0; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
 </div>
 
 ### 3. 日常使用
