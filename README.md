@@ -1,8 +1,8 @@
-# 🦞 OpenClaw 通用启动器
+# 🦞 OpenClaw Launcher
 
-**OpenClaw Launcher** 是一个专为 [OpenClaw](https://openclaw.ai/) 及其汉化分支 [OpenClaw-CN](https://clawd.org.cn) 设计的图形化管理工具。它旨在简化复杂的命令行操作，为用户提供一站式的安装、部署、监控和管理体验。
+**OpenClaw Launcher** 是一个专为 [OpenClaw](https://openclaw.ai/) 设计的图形化管理工具，基于 Flutter 开发，提供一站式的安装、部署、监控和管理体验。
 
-无论您是开发者还是普通用户，通过此启动器，无需记忆复杂的 CLI 指令，即可轻松搭建属于您的 AI 算力网络节点。
+无论您是开发者还是普通用户，通过此启动器，无需记忆复杂的 CLI 指令，即可轻松管理您的 AI 算力网络节点。
 
 <div align="center">
   <img src="images/startup_main.png" alt="OpenClaw 启动后主界面" style="width: 70%; height: auto; border-radius: 100px; margin: 20px 0; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
@@ -12,14 +12,15 @@
 
 ## ✨ 核心功能
 
-* **双核心支持**：完美兼容 **OpenClaw (原版)** 与 **OpenClaw-CN (汉化版)**，自动识别并适配命令。
-* **全自动部署**：独创的“序列化安装队列”，一键完成 `安装` -> `初始化` -> `配置引导` 全流程。
-* **可视化监控**：实时红绿灯显示 Gateway 与 Node 的运行状态，日志窗口实时输出后台信息。
-* **环境自适应**：
-    * 自动修复 VMware/NAS 共享文件夹下的路径报错 (UNC Path Fix)。
-    * 智能检测 Node.js 依赖环境。
-    * 自动提权（管理员身份运行）。
-* **贴心交互**：支持最小化到系统托盘，后台静默运行不打扰。
+* **一键启动**：点击按钮自动按顺序启动 Gateway 和 Node 服务。
+* **智能检测**：自动检测 Gateway 是否已运行，避免重复启动。
+* **实时监控**：
+    * 实时显示 Gateway 与 Node 的运行状态（红绿灯指示）。
+    * 日志窗口实时输出后台信息。
+* **Token 统计**：自动获取并显示当前会话的 Token 使用量，每 10 分钟自动刷新。
+* **主题切换**：支持亮色/深色/跟随系统主题。
+* **开机自启动**：支持 Windows 注册表开机自启。
+* **跨平台打包**：基于 Flutter，支持 Windows 便携式打包。
 
 ---
 
@@ -27,27 +28,27 @@
 
 ### 1. 运行环境
 
-本程序基于 Python 开发，如果您运行的是源码版本，请确保安装以下依赖：
-
-```bash
-pip install sv-ttk pystray pillow
-
-```
-
 *(如果您下载的是打包好的 `.exe` 文件，则无需安装任何依赖，直接双击运行即可)*
 
-### 2. 首次安装 (向导模式)
+如需从源码运行，请确保安装 Flutter SDK：
+```bash
+flutter pub get
+flutter run
+```
 
-1. 启动软件，程序会自动检测系统是否安装了 OpenClaw。
-2. 若未检测到核心，会自动弹出 **安装向导**。
+### 2. 首次使用
+
+1. 启动软件，程序会自动检测系统环境：
+    * 检测 Node.js 是否安装
+    * 检测 OpenClaw 核心是否安装
+    * 检测 Gateway 是否已运行
+2. 若未检测到核心，会提示前往设置页进行安装。
 
 <div align="center">
 <img src="images/install_wizard.png" alt="OpenClaw 安装向导界面" style="width: 70%; height: auto; border-radius: 20px; margin: 10px 0; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
 </div>
 
-3. **选择版本**：在顶部标签页选择 **OpenClaw (原版)** 或 **OpenClaw-CN (汉化版)**。
-4. **点击安装**：推荐点击绿色的 **Windows (PowerShell)** 按钮。
-5. **等待完成**：程序会自动弹出黑色命令行窗口，请按提示完成操作。窗口关闭后，软件会自动刷新状态，显示安装成功。
+3. **安装 OpenClaw**：在设置页点击安装按钮，推荐使用 **Windows (PowerShell)** 安装方式。
 
 <div align="center">
 <img src="images/install_success.png" alt="OpenClaw 安装成功提示" style="width: 70%; height: auto; border-radius: 20px; margin: 10px 0; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
@@ -58,29 +59,43 @@ pip install sv-ttk pystray pillow
 * **🚀 一键启动**：点击主界面按钮，程序会自动按顺序启动 Gateway 和 Node 服务。
 * **🌐 Web 控制台**：服务启动成功（指示灯变绿）后，点击此按钮可直接打开浏览器进入管理后台。
 * **🛑 全部停止**：一键关闭所有相关后台进程，释放系统资源。
-* **↻ 检查更新**：点击左上角更新按钮，可对比本地与云端版本，并支持一键原地更新。
+* **📊 Token 统计**：服务启动后自动显示当前会话的 Token 使用量（Input + Output）。
+* **↻ 手动刷新**：可随时手动刷新 Token 统计信息。
+* **🎨 主题切换**：在设置页可切换亮色/深色/系统主题。
+* **⚡ 开机自启动**：在设置页可开启/关闭开机自启动功能。
 
 ---
 
 ## 🔧 常见问题与解决 (Troubleshooting)
 
-**Q1: 启动时提示 "UNC paths are not supported"？**
+**Q1: 启动时提示 "Port 18789 is already in use"？**
 
-> **A:** 这是 Windows 的限制，通常发生在您在 VMware 共享文件夹或网络驱动器中运行程序时。
-> **v1.4 版本已修复此问题**。我们强制将命令执行路径指向您的用户主目录，您现在可以在任何位置放心运行启动器。
+> **A:** 这表示 Gateway 已经在运行中（可能是您手动启动的）。新版本会自动检测并复用已运行的 Gateway，无需手动停止。
 
-**Q2: 点击安装按钮后弹窗提示 "未检测到 Node.js"？**
+**Q2: Token 统计显示 "--"？**
 
-> **A:** OpenClaw 必须依赖 Node.js 运行环境。
-> 请点击弹窗中的“是”，前往 Node.js 官网下载并安装 **LTS 版本**。安装完毕后重启启动器即可。
+> **A:** Token 统计依赖于 `openclaw status --json` 命令的输出。请确保 Gateway 和 Node 都正常运行后，等待几秒会自动刷新。
 
-**Q3: 安装过程卡在黑色窗口不动？**
+**Q3: 开机自启动不生效？**
 
-> **A:** 请检查窗口中是否有报错信息。如果是网络下载慢，请尝试切换到 **OpenClaw-CN (汉化版)**，它使用了国内加速镜像源。
-> 如果窗口显示 `Press any key to continue...`，说明命令已执行完毕，请按任意键关闭窗口。
+> **A:** 请确保以管理员权限运行过一次启动器，以便写入注册表。自启动功能使用 Windows 注册表 `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run` 实现。
 
-**Q4: 为什么我的 PowerShell 窗口一闪而过？**
+**Q4: 如何打包成便携式 exe？**
 
-> **A:** 请确保您使用的是 v1.4 及以上版本。新版本使用了底层的 `CREATE_NEW_CONSOLE` 技术，强制保持窗口可见，确保您能看到安装结果。
+> **A:** 运行以下命令：
+> ```bash
+> flutter build windows --release
+> ```
+> 生成的 exe 在 `build\windows\x64\release\bundle\` 目录下，该目录即为便携式版本。
 
 ---
+
+## 📝 更新日志
+
+### v1.0.0 (Flutter 重构版)
+* 基于 Flutter 重构，跨平台支持
+* 新增 Token 使用量统计功能
+* 新增 Gateway 自动检测功能
+* 新增主题切换功能
+* 新增开机自启动功能
+* 优化日志显示体验
