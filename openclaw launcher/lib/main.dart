@@ -256,6 +256,22 @@ class LauncherProvider extends ChangeNotifier {
   String currentPid = "--";
   DateTime? _serviceStartTime;
   int totalTokensUsed = 0;
+
+  String? _toastMessage;
+  String? _toastType;
+  void showToast(String message, {String type = "info"}) {
+    _toastMessage = message;
+    _toastType = type;
+    notifyListeners();
+    Future.delayed(const Duration(seconds: 3), () {
+      _toastMessage = null;
+      notifyListeners();
+    });
+  }
+  void clearToast() {
+    _toastMessage = null;
+    notifyListeners();
+  }
   
   // 运行时长格式化
   String get uptime {
@@ -350,7 +366,13 @@ class LauncherProvider extends ChangeNotifier {
     if (logScrollCtrl.hasClients) {
       Future.delayed(const Duration(milliseconds: 100), () {
         if (logScrollCtrl.hasClients) {
-          logScrollCtrl.animateTo(logScrollCtrl.position.maxScrollExtent, duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
+          final position = logScrollCtrl.position;
+          if (!position.hasContentDimensions) return;
+          logScrollCtrl.animateTo(
+            position.maxScrollExtent,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+          );
         }
       });
     }
@@ -641,9 +663,9 @@ class LauncherProvider extends ChangeNotifier {
     addLog("\$ $command", type: "CMD");
     try {
       final process = await Process.start(
-        Platform.isWindows ? 'cmd' : 'sh',
+        Platform.isWindows ? 'cmd.exe' : 'sh',
         Platform.isWindows ? ['/c', command] : ['-c', command],
-        runInShell: false,
+        runInShell: true,
       );
       _monitorStream(process.stdout, "Shell");
       _monitorStream(process.stderr, "Shell", isError: true);
@@ -1031,85 +1053,95 @@ class MainLayout extends StatelessWidget {
       const SettingsPage(),
     ];
 
-    return Scaffold(
-      body: Row(
+return Scaffold(
+      body: Stack(
         children: [
-          // 一级侧边栏 - OpenList 风格
-          Container(
-            width: 220,
-            decoration: BoxDecoration(
-              color: isDark ? surfaceColor : Colors.white,
-              border: Border(
-                right: BorderSide(color: isDark ? borderColor : Colors.grey.shade200),
-              ),
-            ),
-            child: Column(
-              children: [
-                // Logo Area
-                Container(
-                  padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 32, height: 32,
-                        decoration: BoxDecoration(
-                          color: accentColor,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(Icons.smart_toy, color: Colors.white, size: 18),
-                      ),
-                      const SizedBox(width: 10),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+          Row(
+            children: [
+              // 一级侧边栏 - OpenList 风格
+              Container(
+                width: 220,
+                decoration: BoxDecoration(
+                  color: isDark ? surfaceColor : Colors.white,
+                  border: Border(
+                    right: BorderSide(color: isDark ? borderColor : Colors.grey.shade200),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    // Logo Area
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+                      child: Row(
                         children: [
-                          Text("OpenClaw", style: TextStyle(
-                            fontSize: 15, 
-                            fontWeight: FontWeight.w600,
-                            color: isDark ? Colors.white : Colors.black87,
-                          )),
-                          Text("Manager", style: TextStyle(
-                            fontSize: 10, 
-                            color: textSecondary,
-                          )),
+                          Container(
+                            width: 32, height: 32,
+                            decoration: BoxDecoration(
+                              color: accentColor,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(Icons.smart_toy, color: Colors.white, size: 18),
+                          ),
+                          const SizedBox(width: 10),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text("OpenClaw", style: TextStyle(
+                                fontSize: 15, 
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? Colors.white : Colors.black87,
+                              )),
+                              Text("Manager", style: TextStyle(
+                                fontSize: 10, 
+                                color: textSecondary,
+                              )),
+                            ],
+                          )
                         ],
-                      )
-                    ],
-                  ),
-                ),
-                
-                const Divider(height: 1),
-                
-                // Navigation Items
-                Expanded(
-                  child: ListView(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    children: [
-                      _NavItem(icon: Icons.dashboard_rounded, label: "仪表盘", index: 0, isSelected: nav.selectedIndex == 0),
-                      _NavItem(icon: Icons.smart_toy_outlined, label: "AI 配置", index: 1, isSelected: nav.selectedIndex == 1),
-                      _NavItem(icon: Icons.chat_bubble_outline_rounded, label: "消息渠道", index: 2, isSelected: nav.selectedIndex == 2),
-                      _NavItem(icon: Icons.extension_outlined, label: "技能管理", index: 3, isSelected: nav.selectedIndex == 3),
-                      _NavItem(icon: Icons.description_outlined, label: "应用日志", index: 4, isSelected: nav.selectedIndex == 4),
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        child: Divider(height: 1),
                       ),
-                      _NavItem(icon: Icons.settings_outlined, label: "设置", index: 5, isSelected: nav.selectedIndex == 5),
-                    ],
-                  ),
+                    ),
+                    
+                    const Divider(height: 1),
+                    
+                    // Navigation Items
+                    Expanded(
+                      child: ListView(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        children: [
+                          _NavItem(icon: Icons.dashboard_rounded, label: "仪表盘", index: 0, isSelected: nav.selectedIndex == 0),
+                          _NavItem(icon: Icons.smart_toy_outlined, label: "AI 配置", index: 1, isSelected: nav.selectedIndex == 1),
+                          _NavItem(icon: Icons.chat_bubble_outline_rounded, label: "消息渠道", index: 2, isSelected: nav.selectedIndex == 2),
+                          _NavItem(icon: Icons.extension_outlined, label: "技能管理", index: 3, isSelected: nav.selectedIndex == 3),
+                          _NavItem(icon: Icons.description_outlined, label: "应用日志", index: 4, isSelected: nav.selectedIndex == 4),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            child: Divider(height: 1),
+                          ),
+                          _NavItem(icon: Icons.settings_outlined, label: "设置", index: 5, isSelected: nav.selectedIndex == 5),
+                        ],
+                      ),
+                    ),
+                    
+                    // Bottom Status
+                    _BottomStatusWidget(),
+                  ],
                 ),
-
-                // Bottom Status
-                _BottomStatusWidget(),
-              ],
-            ),
+              ),
+              
+              // 右侧内容区
+              Expanded(
+                child: Container(
+                  color: isDark ? surfaceColor : const Color(0xFFF4F4F5),
+                  child: pages[nav.selectedIndex],
+                ),
+              ),
+            ],
           ),
-          
-          // 右侧内容区
-          Expanded(
-            child: Container(
-              color: isDark ? surfaceColor : const Color(0xFFF4F4F5),
-              child: pages[nav.selectedIndex],
-            ),
+          // Toast 提示
+          Positioned(
+            top: 16,
+            right: 16,
+            child: _ToastWidget(),
           ),
         ],
       ),
@@ -1173,6 +1205,65 @@ class _NavItem extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _ToastWidget extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final launcher = context.watch<LauncherProvider>();
+    final message = launcher._toastMessage;
+    final type = launcher._toastType;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    Color bgColor;
+    Color iconColor;
+    IconData icon;
+    switch (type) {
+      case "success": bgColor = const Color(0xFF166534); iconColor = const Color(0xFF3FB950); icon = Icons.check_circle;
+      case "error": bgColor = const Color(0xFF991B1B); iconColor = const Color(0xFFF85149); icon = Icons.error;
+      default: bgColor = const Color(0xFF1E40AF); iconColor = const Color(0xFF60A5FA); icon = Icons.info;
+    }
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 220),
+      reverseDuration: const Duration(milliseconds: 180),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, animation) {
+        final offsetAnimation = Tween<Offset>(
+          begin: const Offset(0, -0.08),
+          end: Offset.zero,
+        ).animate(animation);
+        return FadeTransition(
+          opacity: animation,
+          child: SlideTransition(position: offsetAnimation, child: child),
+        );
+      },
+      child: message == null
+          ? const SizedBox.shrink(key: ValueKey("toast-empty"))
+          : Container(
+              key: ValueKey("toast-$type-$message"),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: bgColor,
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 8, offset: const Offset(0, 2))],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, color: iconColor, size: 18),
+                  const SizedBox(width: 8),
+                  Text(message, style: const TextStyle(color: Colors.white, fontSize: 13)),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: launcher.clearToast,
+                    child: const Icon(Icons.close, color: Colors.white70, size: 16),
+                  ),
+                ],
+              ),
+            ),
     );
   }
 }
@@ -1385,13 +1476,6 @@ class _DashboardPageState extends State<DashboardPage> {
                           },
                         ),
                         const SizedBox(width: 12),
-                        // 打开 CMD 按钮
-                        _CoreActionBtn(
-                          label: "CMD",
-                          icon: Icons.terminal,
-                          color: Colors.blueGrey,
-                          onTap: _openTerminal,
-                        ),
                       ],
                     ),
                   ],
@@ -1416,40 +1500,45 @@ class _DashboardPageState extends State<DashboardPage> {
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Row(
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Icon(Icons.monitor_heart, size: 16, color: accentColor),
-                              const SizedBox(width: 6),
-                              Text("核心监控", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87)),
-                              const Spacer(),
-                              Container(
-                                width: 8, height: 8,
-                                decoration: BoxDecoration(
-                                  color: isRunning ? Colors.green : Colors.red,
-                                  shape: BoxShape.circle,
-                                ),
+                              Row(
+                                children: [
+                                  const Icon(Icons.monitor_heart, size: 16, color: accentColor),
+                                  const SizedBox(width: 6),
+                                  Text("核心监控", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87)),
+                                  const Spacer(),
+                                  Container(
+                                    width: 8, height: 8,
+                                    decoration: BoxDecoration(
+                                      color: isRunning ? Colors.green : Colors.red,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(isRunning ? "运行中" : "已停止", style: TextStyle(fontSize: 11, color: isRunning ? Colors.green : Colors.red, fontWeight: FontWeight.w500)),
+                                ],
                               ),
-                              const SizedBox(width: 4),
-                              Text(isRunning ? "运行中" : "已停止", style: TextStyle(fontSize: 11, color: isRunning ? Colors.green : Colors.red, fontWeight: FontWeight.w500)),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          // 监控指标
-                          Row(
-                            children: [
-                              Expanded(child: _MonitorItem(icon: Icons.bolt, label: "端口", value: launcher.currentPort)),
-                              const SizedBox(width: 16),
-                              Expanded(child: _MonitorItem(icon: Icons.memory, label: "进程ID", value: launcher.currentPid)),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Expanded(child: _MonitorItem(icon: Icons.timer_outlined, label: "运行时间", value: launcher.uptime)),
-                              const SizedBox(width: 16),
-                              Expanded(child: _MonitorItem(icon: Icons.token, label: "已用Tokens", value: launcher.tokenUsageDisplay)),
+                              const SizedBox(height: 12),
+                              // 监控指标
+                              Row(
+                                children: [
+                                  Expanded(child: _MonitorItem(icon: Icons.bolt, label: "端口", value: launcher.currentPort)),
+                                  const SizedBox(width: 16),
+                                  Expanded(child: _MonitorItem(icon: Icons.memory, label: "进程ID", value: launcher.currentPid)),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              Row(
+                                children: [
+                                  Expanded(child: _MonitorItem(icon: Icons.timer_outlined, label: "运行时间", value: launcher.uptime)),
+                                  const SizedBox(width: 16),
+                                  Expanded(child: _MonitorItem(icon: Icons.token, label: "已用Tokens", value: launcher.tokenUsageDisplay)),
+                                ],
+                              ),
                             ],
                           ),
                         ],
@@ -1476,40 +1565,49 @@ class _DashboardPageState extends State<DashboardPage> {
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Row(
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Icon(Icons.smart_toy, size: 16, color: accentColor),
-                              const SizedBox(width: 6),
-                              Text("版本管理", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87)),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: isDark ? const Color(0xFF1F1F1F) : Colors.white,
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text("V${launcher.versionNumber}", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: isDark ? Colors.white : const Color(0xFF374151))),
+                              Row(
+                                children: [
+                                  const Icon(Icons.smart_toy, size: 16, color: accentColor),
+                                  const SizedBox(width: 6),
+                                  Text("版本管理", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87)),
+                                ],
                               ),
-                              if (hasUpdate) ...[
-                                const SizedBox(width: 6),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFFEE2E2),
-                                    borderRadius: BorderRadius.circular(4),
+                              const SizedBox(height: 16),
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: isDark ? const Color(0xFF1F1F1F) : Colors.white,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text("V${launcher.versionNumber}", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: isDark ? Colors.white : const Color(0xFF374151))),
                                   ),
-                                  child: const Text("NEW", style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF374151))),
-                                ),
-                              ],
+                                  if (hasUpdate) ...[
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFFEE2E2),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: const Text("NEW", style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF374151))),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                hasUpdate ? "发现新版本: ${launcher.remoteVersion}" : "管理 OpenClaw 核心程序更新",
+                                style: TextStyle(fontSize: 11, color: Colors.grey),
+                              ),
                             ],
                           ),
-                          const SizedBox(height: 8),
                           Row(
                             children: [
                               Expanded(
@@ -1520,7 +1618,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                   onTap: () => launcher.checkForUpdates(),
                                 ),
                               ),
-                              const SizedBox(width: 6),
+                              const SizedBox(width: 16),
                               Expanded(
                                 child: _ActionButton(
                                   icon: Icons.system_update,
@@ -1579,7 +1677,7 @@ class _DashboardPageState extends State<DashboardPage> {
                         onTap: () {
                           final allLogs = launcher.logs.map((l) => "[${l.time}] ${l.message}").join("\n");
                           Clipboard.setData(ClipboardData(text: allLogs));
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("日志已复制"), duration: Duration(seconds: 1)));
+                          // ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("日志已复制"), duration: Duration(seconds: 1)));
                         },
                         child: Padding(padding: const EdgeInsets.all(4), child: Icon(Icons.copy_all, size: 14, color: Colors.grey)),
                       ),
@@ -1733,13 +1831,33 @@ class _ActionButton extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: color.withAlpha(50)),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 16, color: color),
-                const SizedBox(width: 4),
-                Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w500)),
-              ],
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final bounded = constraints.hasBoundedWidth;
+                return Row(
+                  mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
+                  children: [
+                    Icon(icon, size: 16, color: color),
+                    const SizedBox(width: 4),
+                    if (bounded)
+                      Expanded(
+                        child: Text(
+                          label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w500),
+                        ),
+                      )
+                    else
+                      Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w500),
+                      ),
+                  ],
+                );
+              },
             ),
           ),
         ),
@@ -1768,14 +1886,35 @@ class _MonitorItem extends StatelessWidget {
       child: Row(
         children: [
           Icon(icon, size: 16, color: Colors.grey),
-          const SizedBox(width: 6),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: TextStyle(fontSize: 13, color: Colors.grey)),
-              Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87)),
-            ],
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: isDark ? Colors.white : const Color(0xFF111827),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -1851,7 +1990,7 @@ void _showOverlay() {
             borderRadius: BorderRadius.circular(6),
             color: isDark ? const Color(0xFF1F1F1F) : Colors.white,
             child: Container(
-              constraints: const BoxConstraints(maxHeight: 160),
+              constraints: const BoxConstraints(maxHeight: 220),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(color: isDark ? accentColor.withAlpha(60) : Colors.grey.shade300),
@@ -1984,22 +2123,32 @@ class _CoreFilesColumnState extends State<_CoreFilesColumn> {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.folder_copy, size: 16, color: accentColor),
-              const SizedBox(width: 6),
-              Text("核心文件", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87)),
+              Row(
+                children: [
+                  const Icon(Icons.folder_copy, size: 16, color: accentColor),
+                  const SizedBox(width: 6),
+                  Text("核心文件", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87)),
+                ],
+              ),
+              const SizedBox(height: 16),
+              SizedBox(height: 40, child: _OverlayDropdown(
+                value: coreFiles.selectedFile,
+                hint: "选择文件...",
+                items: coreFiles.coreFiles.map((f) => _OverlayDropdownItem(value: f["name"]!, label: f["name"]!, subtitle: f["description"] ?? "")).toList(),
+                onChanged: (value) => coreFiles.selectFile(value),
+              )),
+              const SizedBox(height: 6),
+              Text(
+                coreFiles.selectedFile.isEmpty ? "管理 Agent 核心配置文件" : (coreFiles.coreFiles.firstWhere((f) => f["name"] == coreFiles.selectedFile, orElse: () => {})["description"] ?? ""),
+                style: TextStyle(fontSize: 11, color: Colors.grey),
+              ),
             ],
           ),
-          const SizedBox(height: 6),
-          SizedBox(height: 40, child: _OverlayDropdown(
-            value: coreFiles.selectedFile,
-            hint: "选择文件...",
-            items: coreFiles.coreFiles.map((f) => _OverlayDropdownItem(value: f["name"]!, label: f["name"]!, subtitle: f["description"] ?? "")).toList(),
-            onChanged: (value) => coreFiles.selectFile(value),
-          )),
-          const SizedBox(height: 6),
           Row(
             children: [
               Expanded(
@@ -2010,7 +2159,7 @@ class _CoreFilesColumnState extends State<_CoreFilesColumn> {
                   onTap: coreFiles.selectedFile.isEmpty ? null : () => coreFiles.openInEditor(),
                 ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 16),
               Expanded(
                 child: _ActionButton(
                   icon: Icons.folder_open,
@@ -2555,7 +2704,14 @@ class _AIConfigPageState extends State<AIConfigPage> {
               cfg.updateField("agents.defaults.model.primary", modelId);
               setState(() {});
             },
-            onEdit: () => _showEditModelDialog(cfg, modelId, modelData, modelsMap),
+            onSave: (alias, maxTokens, temp) {
+              modelData["alias"] = alias;
+              modelData["maxTokens"] = maxTokens;
+              modelData["temperature"] = temp;
+              modelsMap[modelId] = modelData;
+              cfg.updateField("agents.defaults.models", modelsMap);
+              setState(() {});
+            },
             onRemove: () {
               modelsMap.remove(modelId);
               cfg.updateField("agents.defaults.models", modelsMap);
@@ -2591,40 +2747,6 @@ class _AIConfigPageState extends State<AIConfigPage> {
           }
           Navigator.pop(ctx);
         }, child: const Text("添加")),
-      ],
-    ));
-  }
-
-  void _showEditModelDialog(ConfigProvider cfg, String modelId, Map modelData, Map modelsMap) {
-    final aliasCtrl = TextEditingController(text: modelData["alias"] ?? "");
-    final maxTokensCtrl = TextEditingController(text: (modelData["maxTokens"] ?? "").toString());
-    final tempCtrl = TextEditingController(text: (modelData["temperature"] ?? "").toString());
-
-    showDialog(context: context, builder: (ctx) => AlertDialog(
-      title: Text("编辑: $modelId"),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(controller: aliasCtrl, decoration: const InputDecoration(labelText: "别名")),
-          const SizedBox(height: 8),
-          TextField(controller: maxTokensCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: "最大 Tokens")),
-          const SizedBox(height: 8),
-          TextField(controller: tempCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: "温度 (0-2)")),
-        ],
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("取消")),
-        FilledButton(onPressed: () {
-          modelData["alias"] = aliasCtrl.text.trim();
-          final mt = int.tryParse(maxTokensCtrl.text.trim());
-          if (mt != null) modelData["maxTokens"] = mt;
-          final temp = double.tryParse(tempCtrl.text.trim());
-          if (temp != null) modelData["temperature"] = temp;
-          modelsMap[modelId] = modelData;
-          cfg.updateField("agents.defaults.models", modelsMap);
-          setState(() {});
-          Navigator.pop(ctx);
-        }, child: const Text("保存")),
       ],
     ));
   }
@@ -2757,6 +2879,30 @@ class _AIConfigPageState extends State<AIConfigPage> {
 }
 
 // 模型卡片组件（可展开）
+class _ParamChip extends StatelessWidget {
+  final String label;
+  final String value;
+  const _ParamChip({required this.label, required this.value});
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1F1F1F) : Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text("$label: ", style: TextStyle(fontSize: 11, color: Colors.grey)),
+          Text(value, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87)),
+        ],
+      ),
+    );
+  }
+}
+
 class _ModelCard extends StatefulWidget {
   final String modelId;
   final String alias;
@@ -2764,7 +2910,7 @@ class _ModelCard extends StatefulWidget {
   final double? temperature;
   final bool isPrimary;
   final VoidCallback onSetPrimary;
-  final VoidCallback onEdit;
+  final Function(String alias, int? maxTokens, double? temperature) onSave;
   final VoidCallback onRemove;
 
   const _ModelCard({
@@ -2774,7 +2920,7 @@ class _ModelCard extends StatefulWidget {
     this.temperature,
     required this.isPrimary,
     required this.onSetPrimary,
-    required this.onEdit,
+    required this.onSave,
     required this.onRemove,
   });
 
@@ -2783,8 +2929,50 @@ class _ModelCard extends StatefulWidget {
 }
 
 class _ModelCardState extends State<_ModelCard> {
-  bool _isExpanded = false;
+  bool _isExpanded = true;
+  late TextEditingController _aliasCtrl;
+  late TextEditingController _maxTokensCtrl;
+  late TextEditingController _tempCtrl;
   bool _isEditing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _aliasCtrl = TextEditingController(text: widget.alias);
+    _maxTokensCtrl = TextEditingController(text: widget.maxTokens?.toString() ?? "");
+    _tempCtrl = TextEditingController(text: widget.temperature?.toString() ?? "");
+    _isExpanded = false;
+    _isEditing = true;
+  }
+
+  @override
+  void didUpdateWidget(covariant _ModelCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.modelId != widget.modelId) {
+      _aliasCtrl.text = widget.alias;
+      _maxTokensCtrl.text = widget.maxTokens?.toString() ?? "";
+      _tempCtrl.text = widget.temperature?.toString() ?? "";
+    }
+  }
+
+  @override
+  void dispose() {
+    _aliasCtrl.dispose();
+    _maxTokensCtrl.dispose();
+    _tempCtrl.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final alias = _aliasCtrl.text.trim();
+    final maxTokens = int.tryParse(_maxTokensCtrl.text.trim());
+    final temp = double.tryParse(_tempCtrl.text.trim());
+    widget.onSave(alias, maxTokens, temp);
+    setState(() {
+      _isEditing = false;
+      _isExpanded = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2841,48 +3029,168 @@ class _ModelCardState extends State<_ModelCard> {
             Container(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Divider(),
-                  // 参数显示
-                  if (widget.maxTokens != null || widget.temperature != null) ...[
+                  if (_isEditing) ...[
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF1F1F1F) : Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: isDark ? const Color(0xFF3F3F46) : Colors.grey.shade200),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("编辑模型", style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87)),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Container(
+                                  height: 36,
+                                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                                  decoration: BoxDecoration(
+                                    color: isDark ? const Color(0xFF27272A) : Colors.white,
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: isDark ? const Color(0xFF3F3F46) : Colors.grey.shade300),
+                                  ),
+                                  child: Center(
+                                    child: TextField(
+                                      controller: _aliasCtrl,
+                                      style: TextStyle(fontSize: 13, color: isDark ? Colors.white : Colors.black87),
+                                      decoration: const InputDecoration(
+                                        hintText: "别名",
+                                        border: InputBorder.none,
+                                        isDense: true,
+                                        contentPadding: EdgeInsets.symmetric(vertical: 8),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Container(
+                                  height: 36,
+                                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                                  decoration: BoxDecoration(
+                                    color: isDark ? const Color(0xFF27272A) : Colors.white,
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: isDark ? const Color(0xFF3F3F46) : Colors.grey.shade300),
+                                  ),
+                                  child: Center(
+                                    child: TextField(
+                                      controller: _maxTokensCtrl,
+                                      keyboardType: TextInputType.number,
+                                      style: TextStyle(fontSize: 13, color: isDark ? Colors.white : Colors.black87),
+                                      decoration: const InputDecoration(
+                                        hintText: "最大Tokens",
+                                        border: InputBorder.none,
+                                        isDense: true,
+                                        contentPadding: EdgeInsets.symmetric(vertical: 8),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Container(
+                                  height: 36,
+                                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                                  decoration: BoxDecoration(
+                                    color: isDark ? const Color(0xFF27272A) : Colors.white,
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: isDark ? const Color(0xFF3F3F46) : Colors.grey.shade300),
+                                  ),
+                                  child: Center(
+                                    child: TextField(
+                                      controller: _tempCtrl,
+                                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                      style: TextStyle(fontSize: 13, color: isDark ? Colors.white : Colors.black87),
+                                      decoration: const InputDecoration(
+                                        hintText: "温度",
+                                        border: InputBorder.none,
+                                        isDense: true,
+                                        contentPadding: EdgeInsets.symmetric(vertical: 8),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              if (!widget.isPrimary)
+                                _ActionButton(
+                                  icon: Icons.star,
+                                  label: "设为主模型",
+                                  color: const Color(0xFFCA8A04),
+                                  onTap: widget.onSetPrimary,
+                                ),
+                              if (!widget.isPrimary) const SizedBox(width: 8),
+                              _ActionButton(
+                                icon: Icons.close,
+                                label: "取消",
+                                color: Colors.grey,
+                                onTap: () => setState(() => _isEditing = false),
+                              ),
+                              const SizedBox(width: 8),
+                              _ActionButton(
+                                icon: Icons.check,
+                                label: "保存",
+                                color: Colors.green,
+                                onTap: _save,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ] else ...[
+                    Text("参数", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
-                      runSpacing: 4,
+                      runSpacing: 8,
                       children: [
-                        if (widget.maxTokens != null)
-                          Chip(label: Text("Tokens: ${widget.maxTokens}", style: const TextStyle(fontSize: 11)), materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.compact),
-                        if (widget.temperature != null)
-                          Chip(label: Text("Temp: ${widget.temperature}", style: const TextStyle(fontSize: 11)), materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.compact),
+                        _ParamChip(label: "别名", value: widget.alias.isEmpty ? "-" : widget.alias),
+                        if (widget.maxTokens != null) _ParamChip(label: "最大Tokens", value: widget.maxTokens.toString()),
+                        if (widget.temperature != null) _ParamChip(label: "温度", value: widget.temperature.toString()),
                       ],
                     ),
                     const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        _ActionButton(
+                          icon: widget.isPrimary ? Icons.star : Icons.star_border,
+                          label: widget.isPrimary ? "主模型" : "设为主模型",
+                          color: widget.isPrimary ? Colors.amber : Colors.grey,
+                          onTap: widget.isPrimary ? null : widget.onSetPrimary,
+                        ),
+                        const SizedBox(width: 8),
+                        _ActionButton(
+                          icon: Icons.edit,
+                          label: "编辑",
+                          color: Colors.blue,
+                          onTap: () => setState(() => _isEditing = true),
+                        ),
+                        const SizedBox(width: 8),
+                        _ActionButton(
+                          icon: Icons.delete,
+                          label: "删除",
+                          color: Colors.red,
+                          onTap: widget.onRemove,
+                        ),
+                      ],
+                    ),
                   ],
-                  // 操作按钮（统一风格）
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      _ActionButton(
-                        icon: widget.isPrimary ? Icons.star : Icons.star_border,
-                        label: widget.isPrimary ? "主模型" : "设为主模型",
-                        color: widget.isPrimary ? Colors.amber : Colors.grey,
-                        onTap: widget.isPrimary ? null : widget.onSetPrimary,
-                      ),
-                      const SizedBox(width: 8),
-                      _ActionButton(
-                        icon: Icons.edit,
-                        label: "编辑",
-                        color: Colors.blue,
-                        onTap: () => setState(() => _isEditing = true),
-                      ),
-                      const SizedBox(width: 8),
-                      _ActionButton(
-                        icon: Icons.delete,
-                        label: "删除",
-                        color: Colors.red,
-                        onTap: widget.onRemove,
-                      ),
-                    ],
-                  ),
                 ],
               ),
             ),
@@ -2928,6 +3236,7 @@ class _ChannelsPageState extends State<ChannelsPage> {
     {"name": "Discord", "icon": Icons.discord, "desc": "Bot Gateway", "configKey": "discord"},
     {"name": "Slack", "icon": Icons.chat_bubble_outline, "desc": "Slack Bot", "configKey": "slack"},
     {"name": "iMessage", "icon": Icons.message, "desc": "macOS 本地集成", "configKey": "imessage"},
+    {"name": "QQ Bot", "icon": Icons.alternate_email, "desc": "QQ 机器人", "configKey": "qqbot"},
   ];
 
   // 当前已添加的渠道
@@ -2938,6 +3247,7 @@ class _ChannelsPageState extends State<ChannelsPage> {
     {"name": "Discord", "icon": Icons.discord, "desc": "Bot Gateway", "configKey": "discord"},
     {"name": "Slack", "icon": Icons.chat_bubble_outline, "desc": "Slack Bot", "configKey": "slack"},
     {"name": "iMessage", "icon": Icons.message, "desc": "macOS 本地集成", "configKey": "imessage"},
+    {"name": "QQ Bot", "icon": Icons.alternate_email, "desc": "QQ 机器人", "configKey": "qqbot"},
   ];
 
   void _addChannel(BuildContext context) {
@@ -2946,7 +3256,7 @@ class _ChannelsPageState extends State<ChannelsPage> {
     final available = allAvailableChannels.where((c) => !existingKeys.contains(c["configKey"])).toList();
     
     if (available.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("所有支持的渠道都已添加")));
+      // ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("所有支持的渠道都已添加")));
       return;
     }
 
@@ -3020,15 +3330,10 @@ class _ChannelsPageState extends State<ChannelsPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
+              const Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text("已启用渠道", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
-                  IconButton(
-                    icon: const Icon(Icons.add_circle_outline, size: 18),
-                    tooltip: "添加渠道",
-                    onPressed: () => _addChannel(context),
-                  ),
+                  Text("已启用渠道", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
                 ],
               ),
               const SizedBox(height: 8),
@@ -3099,6 +3404,7 @@ class _ChannelsPageState extends State<ChannelsPage> {
       case "discord": return const _DiscordConfigView();
       case "slack": return const _SlackConfigView();
       case "imessage": return const _IMessageConfigView();
+      case "qqbot": return const _QQBotConfigView();
       default: return const Center(child: Text("未知的渠道"));
     }
   }
@@ -3107,6 +3413,69 @@ class _ChannelsPageState extends State<ChannelsPage> {
 // ==========================================
 // 补全：渠道配置详情子页面
 // ==========================================
+
+class _QQBotConfigView extends StatelessWidget {
+  const _QQBotConfigView();
+  @override
+  Widget build(BuildContext context) {
+    final cfg = context.watch<ConfigProvider>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final qq = cfg.config.get("channels.qqbot") as Map? ?? {};
+    final enabled = qq["enabled"] as bool? ?? false;
+    final appId = qq["appId"] as String? ?? "";
+    final clientSecret = qq["clientSecret"] as String? ?? "";
+    return ListView(children: [
+      _SectionCard(title: "QQ Bot 配置", child: Column(children: [
+        _SwitchTile(
+          title: "启用 QQ Bot 渠道",
+          value: enabled,
+          onChanged: (v) => cfg.updateField("channels.qqbot.enabled", v),
+        ),
+        const SizedBox(height: 16),
+        _ConfigTextField(
+          label: "App ID",
+          value: appId,
+          onChanged: (v) => cfg.updateField("channels.qqbot.appId", v),
+        ),
+        const SizedBox(height: 12),
+        _ConfigTextField(
+          label: "Client Secret",
+          value: clientSecret,
+          isSecret: true,
+          onChanged: (v) => cfg.updateField("channels.qqbot.clientSecret", v),
+        ),
+      ])),
+      const SizedBox(height: 24),
+      _SectionCard(title: "语音合成 (TTS)", child: Column(children: [
+        _ConfigTextField(
+          label: "Provider",
+          value: qq["tts"]?["provider"] as String? ?? "",
+          onChanged: (v) => cfg.updateField("channels.qqbot.tts.provider", v),
+        ),
+        const SizedBox(height: 12),
+        _ConfigTextField(
+          label: "Model",
+          value: qq["tts"]?["model"] as String? ?? "",
+          onChanged: (v) => cfg.updateField("channels.qqbot.tts.model", v),
+        ),
+      ])),
+      const SizedBox(height: 24),
+      _SectionCard(title: "语音识别 (STT)", child: Column(children: [
+        _ConfigTextField(
+          label: "Provider",
+          value: qq["stt"]?["provider"] as String? ?? "",
+          onChanged: (v) => cfg.updateField("channels.qqbot.stt.provider", v),
+        ),
+        const SizedBox(height: 12),
+        _ConfigTextField(
+          label: "Model",
+          value: qq["stt"]?["model"] as String? ?? "",
+          onChanged: (v) => cfg.updateField("channels.qqbot.stt.model", v),
+        ),
+      ])),
+    ]);
+  }
+}
 
 class _WhatsAppConfigView extends StatelessWidget {
   const _WhatsAppConfigView();
@@ -3291,6 +3660,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _toggleAutoStart(bool value) async {
     if (!Platform.isWindows) return;
+    final launcher = context.read<LauncherProvider>();
     try {
       if (value) {
         final exePath = _getExePath();
@@ -3299,17 +3669,9 @@ class _SettingsPageState extends State<SettingsPage> {
         await Process.run('reg', ['delete', _regPath, '/v', _appName, '/f'], runInShell: true);
       }
       setState(() => _autoStart = value);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(value ? "已开启开机自启动" : "已关闭开机自启动"), duration: const Duration(seconds: 1)),
-        );
-      }
+      launcher.showToast(value ? "已开启开机自启动" : "已关闭开机自启动", type: "success");
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("操作失败: $e"), duration: const Duration(seconds: 2)),
-        );
-      }
+      launcher.showToast("操作失败: $e", type: "error");
     }
   }
 
@@ -3317,20 +3679,61 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
     final launcher = context.watch<LauncherProvider>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return ListView(padding: const EdgeInsets.all(32), children: [
-      _SectionCard(title: "界面偏好", child: SegmentedButton<ThemeMode>(
-        segments: const [ButtonSegment(value: ThemeMode.system, label: Text('自动'), icon: Icon(Icons.brightness_auto)), ButtonSegment(value: ThemeMode.light, label: Text('亮色'), icon: Icon(Icons.light_mode)), ButtonSegment(value: ThemeMode.dark, label: Text('深色'), icon: Icon(Icons.dark_mode))],
-        selected: {themeProvider.themeMode}, onSelectionChanged: (s) => themeProvider.setThemeMode(s.first),
+      _SectionCard(title: "界面偏好", child: Row(
+        children: [
+          _ThemeButton(
+            icon: Icons.brightness_auto,
+            label: "自动",
+            isSelected: themeProvider.themeMode == ThemeMode.system,
+            onTap: () => themeProvider.setThemeMode(ThemeMode.system),
+          ),
+          const SizedBox(width: 12),
+          _ThemeButton(
+            icon: Icons.light_mode,
+            label: "亮色",
+            isSelected: themeProvider.themeMode == ThemeMode.light,
+            onTap: () => themeProvider.setThemeMode(ThemeMode.light),
+          ),
+          const SizedBox(width: 12),
+          _ThemeButton(
+            icon: Icons.dark_mode,
+            label: "深色",
+            isSelected: themeProvider.themeMode == ThemeMode.dark,
+            onTap: () => themeProvider.setThemeMode(ThemeMode.dark),
+          ),
+        ],
       )),
       const SizedBox(height: 24),
-      SwitchListTile(
-        title: const Text("开机自启动"),
-        subtitle: Text(_loading ? "检测中..." : (_autoStart ? "已开启 — 系统启动时自动运行" : "未开启")),
-        value: _autoStart,
-        onChanged: _loading ? null : _toggleAutoStart,
-        secondary: Icon(_autoStart ? Icons.check_circle : Icons.circle_outlined, color: _autoStart ? Colors.green : Colors.grey),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        tileColor: Theme.of(context).cardColor,
+      Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF27272A) : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: isDark ? const Color(0xFF3F3F46) : Colors.grey.shade200),
+        ),
+        child: Row(
+          children: [
+            Icon(_autoStart ? Icons.check_circle : Icons.circle_outlined, color: _autoStart ? Colors.green : Colors.grey),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("开机自启动", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87)),
+                  const SizedBox(height: 4),
+                  Text(_loading ? "检测中..." : (_autoStart ? "系统启动时自动运行" : "未开启"), style: TextStyle(fontSize: 12, color: Colors.grey)),
+                ],
+              ),
+            ),
+            Switch(
+              value: _autoStart,
+              onChanged: _loading ? null : _toggleAutoStart,
+              activeColor: Colors.green,
+            ),
+          ],
+        ),
       ),
       const SizedBox(height: 24),
       _SectionCard(title: "核心管理", child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -4053,6 +4456,45 @@ class _UnifiedDropdown extends StatelessWidget {
   }
 }
 
+class _ThemeButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+  const _ThemeButton({required this.icon, required this.label, required this.isSelected, required this.onTap});
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    const accentColor = Color(0xFF3B82F6);
+    return Expanded(
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(10),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            decoration: BoxDecoration(
+              color: isSelected ? accentColor.withAlpha(25) : (isDark ? const Color(0xFF1F1F1F) : Colors.grey.shade100),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: isSelected ? accentColor : (isDark ? const Color(0xFF3F3F46) : Colors.grey.shade200)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 18, color: isSelected ? accentColor : (isDark ? Colors.grey.shade400 : Colors.grey.shade600)),
+                const SizedBox(width: 8),
+                Text(label, style: TextStyle(fontSize: 13, color: isSelected ? accentColor : (isDark ? Colors.white : Colors.black87), fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _BigInstallButton extends StatelessWidget {
   final String title, subtitle;
   final IconData icon;
@@ -4121,18 +4563,14 @@ class _SecondarySidebarItem extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     const accentColor = Color(0xFF3B82F6);
-    const borderColor = Color(0xFF3F3F46);
-    const cardColor = Color(0xFF27272A);
-    
-    // 选中：accent色背景 + 白色文字
-    // 未选中：透明背景 + 灰色文字
-    final bgColor = isSelected ? accentColor : Colors.transparent;
-    final fgColor = isSelected 
-        ? Colors.white 
+    const textSecondary = Color(0xFF71717A);
+
+    final titleColor = isSelected
+        ? accentColor
         : (isDark ? Colors.grey.shade400 : Colors.grey.shade700);
-    final subtitleColor = isSelected 
-        ? Colors.white.withAlpha(200) 
-        : (isDark ? Colors.grey.shade500 : Colors.grey.shade500);
+    final subtitleColor = isSelected
+        ? accentColor.withAlpha(200)
+        : (isDark ? Colors.grey.shade500 : Colors.grey.shade600);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
@@ -4141,24 +4579,16 @@ class _SecondarySidebarItem extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(8),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
               color: isSelected ? accentColor.withAlpha(25) : Colors.transparent,
-              borderRadius: BorderRadius.circular(10),
-              border: isSelected ? Border.all(color: accentColor.withAlpha(50)) : null,
+              borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: isSelected ? accentColor : (isDark ? cardColor : Colors.grey.shade100),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(icon, size: 16, color: isSelected ? Colors.white : fgColor),
-                ),
+                Icon(icon, size: 18, color: isSelected ? accentColor : textSecondary),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -4167,7 +4597,7 @@ class _SecondarySidebarItem extends StatelessWidget {
                       Text(
                         title,
                         style: TextStyle(
-                          color: isSelected ? accentColor : fgColor,
+                          color: titleColor,
                           fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                           fontSize: 13,
                         ),
@@ -4179,15 +4609,28 @@ class _SecondarySidebarItem extends StatelessWidget {
                         Text(
                           subtitle!,
                           style: TextStyle(
-                            // ignore: deprecated_member_use
-                            color: fgColor.withOpacity(0.7),
+                            color: subtitleColor,
                             fontSize: 10,
+                            fontWeight: isSelected ? FontWeight.w500 : FontWeight.normal,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         )
                       ]
                     ],
                   ),
                 ),
+                if (isSelected) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    width: 3,
+                    height: 16,
+                    decoration: BoxDecoration(
+                      color: accentColor,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
