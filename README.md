@@ -6,6 +6,34 @@
 
 ---
 
+## 📸 界面预览
+
+### ☀️ 亮色模式
+
+<div align="center">
+  <img src="images/dashboard_light.png" alt="Dashboard 亮色模式" style="width: 85%; height: auto; border-radius: 12px; margin: 16px 0; box-shadow: 0 4px 12px rgba(0,0,0,0.1);" />
+</div>
+
+### 🌙 深色模式
+
+<div align="center">
+  <img src="images/dashboard_dark.png" alt="Dashboard 深色模式" style="width: 85%; height: auto; border-radius: 12px; margin: 16px 0; box-shadow: 0 4px 12px rgba(0,0,0,0.2);" />
+</div>
+
+### 🤖 AI 配置
+
+<div align="center">
+  <img src="images/ai_config.png" alt="AI 配置页面" style="width: 85%; height: auto; border-radius: 12px; margin: 16px 0; box-shadow: 0 4px 12px rgba(0,0,0,0.2);" />
+</div>
+
+### 💬 消息渠道
+
+<div align="center">
+  <img src="images/channels.png" alt="消息渠道页面" style="width: 85%; height: auto; border-radius: 12px; margin: 16px 0; box-shadow: 0 4px 12px rgba(0,0,0,0.2);" />
+</div>
+
+---
+
 ## ✨ 核心功能
 
 ### 📊 Dashboard
