@@ -96,8 +96,9 @@ class OpenClawApp extends StatelessWidget {
         
         // 输入框样式
         inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: cardColor,
+          // Keep text fields transparent in dark mode to avoid double-layer backgrounds.
+          filled: false,
+          fillColor: Colors.transparent,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
             borderSide: const BorderSide(color: borderColor),
