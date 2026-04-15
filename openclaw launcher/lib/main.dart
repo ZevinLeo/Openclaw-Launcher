@@ -1,4 +1,4 @@
-// ignore_for_file: duplicate_ignore, deprecated_member_use, unused_field, use_null_aware_elements, unused_element_parameter, unused_local_variable, unnecessary_import, avoid_print
+// ignore_for_file: unnecessary_non_null_assertion, duplicate_ignore, deprecated_member_use, unused_field, use_null_aware_elements, unused_element_parameter, unused_local_variable, unnecessary_import, avoid_print
 
 import 'dart:async';
 import 'dart:convert';
@@ -1407,8 +1407,8 @@ class _DashboardPageState extends State<DashboardPage> {
                   Expanded(
                     flex: 3,
                     child: Container(
-                      height: 200,
-                      padding: const EdgeInsets.all(16),
+                      height: 190,
+                      padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: isDark ? cardColor : Colors.white,
                         borderRadius: BorderRadius.circular(12),
@@ -1420,9 +1420,9 @@ class _DashboardPageState extends State<DashboardPage> {
                         children: [
                           Row(
                             children: [
-                              const Icon(Icons.monitor_heart, size: 18, color: accentColor),
-                              const SizedBox(width: 8),
-                              Text("核心监控", style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87)),
+                              const Icon(Icons.monitor_heart, size: 16, color: accentColor),
+                              const SizedBox(width: 6),
+                              Text("核心监控", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87)),
                               const Spacer(),
                               Container(
                                 width: 8, height: 8,
@@ -1431,8 +1431,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                   shape: BoxShape.circle,
                                 ),
                               ),
-                              const SizedBox(width: 6),
-                              Text(isRunning ? "运行中" : "已停止", style: TextStyle(fontSize: 12, color: isRunning ? Colors.green : Colors.red, fontWeight: FontWeight.w500)),
+                              const SizedBox(width: 4),
+                              Text(isRunning ? "运行中" : "已停止", style: TextStyle(fontSize: 11, color: isRunning ? Colors.green : Colors.red, fontWeight: FontWeight.w500)),
                             ],
                           ),
                           const SizedBox(height: 12),
@@ -1467,8 +1467,8 @@ class _DashboardPageState extends State<DashboardPage> {
                   Expanded(
                     flex: 2,
                     child: Container(
-                      height: 200,
-                      padding: const EdgeInsets.all(16),
+                      height: 190,
+                      padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: isDark ? cardColor : const Color(0xFFF0F9FF),
                         borderRadius: BorderRadius.circular(12),
@@ -1480,19 +1480,12 @@ class _DashboardPageState extends State<DashboardPage> {
                         children: [
                           Row(
                             children: [
-                              const Icon(Icons.smart_toy, size: 18, color: accentColor),
-                              const SizedBox(width: 8),
-                              Text("版本管理", style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87)),
-                              const Spacer(),
-                              IconButton(
-                                icon: const Icon(Icons.refresh, size: 18),
-                                color: Colors.grey,
-                                tooltip: "检测更新",
-                                onPressed: () => launcher.checkForUpdates(),
-                              ),
+                              const Icon(Icons.smart_toy, size: 16, color: accentColor),
+                              const SizedBox(width: 6),
+                              Text("版本管理", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87)),
                             ],
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 4),
                           Row(
                             children: [
                               Container(
@@ -1516,15 +1509,27 @@ class _DashboardPageState extends State<DashboardPage> {
                               ],
                             ],
                           ),
-                          const SizedBox(height: 12),
-                          SizedBox(
-                            width: double.infinity,
-                            child: _ActionButton(
-                              icon: Icons.system_update,
-                              label: hasUpdate ? "更新到 V${launcher.remoteVersion}" : "已是最新版本",
-                              color: hasUpdate ? accentColor : Colors.grey,
-                              onTap: hasUpdate ? () => launcher.updateCore() : null,
-                            ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _ActionButton(
+                                  icon: Icons.refresh,
+                                  label: "检查更新",
+                                  color: Colors.blue,
+                                  onTap: () => launcher.checkForUpdates(),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: _ActionButton(
+                                  icon: Icons.system_update,
+                                  label: hasUpdate ? "更新到 V${launcher.remoteVersion}" : "已是最新版本",
+                                  color: hasUpdate ? accentColor : Colors.grey,
+                                  onTap: hasUpdate ? () => launcher.updateCore() : null,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -1779,6 +1784,152 @@ class _MonitorItem extends StatelessWidget {
 }
 
 // 核心文件列组件
+class _OverlayDropdownItem {
+  final String value;
+  final String label;
+  final String subtitle;
+  const _OverlayDropdownItem({required this.value, required this.label, this.subtitle = ""});
+}
+
+class _OverlayDropdown extends StatefulWidget {
+  final String value;
+  final String hint;
+  final List<_OverlayDropdownItem> items;
+  final ValueChanged<String> onChanged;
+  const _OverlayDropdown({required this.value, required this.hint, required this.items, required this.onChanged});
+
+  @override
+  State<_OverlayDropdown> createState() => _OverlayDropdownState();
+}
+
+class _OverlayDropdownState extends State<_OverlayDropdown> {
+  bool _isOpen = false;
+  final LayerLink _layerLink = LayerLink();
+  OverlayEntry? _overlayEntry;
+
+  @override
+  void dispose() {
+    _removeOverlay();
+    super.dispose();
+  }
+
+  void _removeOverlay() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+  }
+
+  void _toggleDropdown() {
+    if (_isOpen) {
+      _removeOverlay();
+      setState(() => _isOpen = false);
+    } else {
+      _showOverlay();
+    }
+  }
+
+  void _showOverlay() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    const accentColor = Color(0xFF3B82F6);
+
+    final renderBox = context.findRenderObject() as RenderBox;
+    final dropdownWidth = renderBox.size.width;
+
+    _overlayEntry = OverlayEntry(
+      builder: (ctx) => Positioned(
+        width: dropdownWidth,
+        child: CompositedTransformFollower(
+          link: _layerLink,
+          targetAnchor: Alignment.bottomLeft,
+          followerAnchor: Alignment.topLeft,
+          child: Material(
+            elevation: 8,
+            borderRadius: BorderRadius.circular(6),
+            color: isDark ? const Color(0xFF1F1F1F) : Colors.white,
+            child: Container(
+              constraints: const BoxConstraints(maxHeight: 160),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: isDark ? accentColor.withAlpha(60) : Colors.grey.shade300),
+              ),
+              child: ListView.builder(
+                shrinkWrap: true,
+                padding: EdgeInsets.zero,
+                itemCount: widget.items.length,
+                itemBuilder: (c, i) {
+                  final item = widget.items[i];
+                  final isSelected = item.value == widget.value;
+                  return InkWell(
+                    onTap: () {
+                      widget.onChanged(item.value);
+                      _removeOverlay();
+                      setState(() => _isOpen = false);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isSelected ? accentColor.withAlpha(20) : Colors.transparent,
+                        border: i < widget.items.length - 1 ? Border(bottom: BorderSide(color: isDark ? Colors.grey.shade800.withAlpha(30) : Colors.grey.shade200)) : null,
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(item.label, style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal, fontSize: 14)),
+                                if (item.subtitle.isNotEmpty) Text(item.subtitle, style: TextStyle(fontSize: 12, color: Colors.grey)),
+                              ],
+                            ),
+                          ),
+                          if (isSelected) Icon(Icons.check, size: 14, color: accentColor),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    Overlay.of(context).insert(_overlayEntry!);
+    setState(() => _isOpen = true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    const accentColor = Color(0xFF3B82F6);
+    final selectedItem = widget.items.where((e) => e.value == widget.value).firstOrNull;
+
+return CompositedTransformTarget(
+      link: _layerLink,
+      child: InkWell(
+        onTap: _toggleDropdown,
+        borderRadius: BorderRadius.circular(6),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1F1F1F) : Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: _isOpen ? accentColor : (isDark ? accentColor.withAlpha(60) : Colors.grey.shade300), width: _isOpen ? 2 : 1),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(selectedItem?.label ?? widget.hint, style: TextStyle(color: selectedItem != null ? (isDark ? Colors.white : Colors.black87) : Colors.grey, fontSize: 14)),
+              ),
+              AnimatedRotation(turns: _isOpen ? 0.5 : 0, duration: const Duration(milliseconds: 200), child: Icon(Icons.keyboard_arrow_down, size: 20, color: _isOpen ? accentColor : Colors.grey)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _CoreFilesColumn extends StatefulWidget {
   const _CoreFilesColumn();
 
@@ -1806,8 +1957,8 @@ class _CoreFilesColumnState extends State<_CoreFilesColumn> {
     final cardColor = isDark ? const Color(0xFF27272A) : Colors.white;
 
     return Container(
-      height: 200,
-      padding: const EdgeInsets.all(16),
+      height: 190,
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: cardColor,
         borderRadius: BorderRadius.circular(12),
@@ -1818,43 +1969,19 @@ class _CoreFilesColumnState extends State<_CoreFilesColumn> {
         children: [
           Row(
             children: [
-              const Icon(Icons.folder_copy, size: 18, color: accentColor),
-              const SizedBox(width: 8),
-              Text("核心文件", style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87)),
+              const Icon(Icons.folder_copy, size: 16, color: accentColor),
+              const SizedBox(width: 6),
+              Text("核心文件", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87)),
             ],
           ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1F1F1F) : Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: isDark ? accentColor.withAlpha(60) : Colors.grey.shade300),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: coreFiles.selectedFile.isEmpty ? null : coreFiles.selectedFile,
-                  hint: Text("选择文件...", style: TextStyle(fontSize: 12, color: Colors.grey)),
-                  isExpanded: true,
-                  dropdownColor: isDark ? const Color(0xFF1F1F1F) : Colors.white,
-                  style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 12),
-                  items: coreFiles.coreFiles.map((f) {
-                    return DropdownMenuItem(
-                      value: f["name"],
-                      child: Text(f["name"] ?? "", style: const TextStyle(fontSize: 12)),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    if (value != null) {
-                      coreFiles.selectFile(value);
-                    }
-                  },
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
+          SizedBox(height: 36, child: _OverlayDropdown(
+            value: coreFiles.selectedFile,
+            hint: "选择文件...",
+            items: coreFiles.coreFiles.map((f) => _OverlayDropdownItem(value: f["name"]!, label: f["name"]!, subtitle: f["description"] ?? "")).toList(),
+            onChanged: (value) => coreFiles.selectFile(value),
+          )),
+          const SizedBox(height: 6),
           Row(
             children: [
               Expanded(
@@ -1865,7 +1992,7 @@ class _CoreFilesColumnState extends State<_CoreFilesColumn> {
                   onTap: coreFiles.selectedFile.isEmpty ? null : () => coreFiles.openInEditor(),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               Expanded(
                 child: _ActionButton(
                   icon: Icons.folder_open,
@@ -2351,12 +2478,12 @@ class _AIConfigPageState extends State<AIConfigPage> {
         const SizedBox(height: 24),
         _SectionCard(
           title: "压缩策略",
-          child: DropdownButtonFormField<String>(
-            initialValue: agentDefaults["compaction"]?["mode"] ?? "safeguard",
-            decoration: const InputDecoration(labelText: "压缩模式", isDense: true),
+          child: _OverlayDropdown(
+            value: agentDefaults["compaction"]?["mode"] ?? "safeguard",
+            hint: "选择模式",
             items: const [
-              DropdownMenuItem(value: "safeguard", child: Text("Safeguard (安全模式)")),
-              DropdownMenuItem(value: "auto", child: Text("Auto (自动)")),
+              _OverlayDropdownItem(value: "safeguard", label: "Safeguard (安全模式)", subtitle: "安全压缩"),
+              _OverlayDropdownItem(value: "auto", label: "Auto (自动)", subtitle: "自动压缩"),
             ],
             onChanged: (v) => cfg.updateField("agents.defaults.compaction.mode", v),
           ),
@@ -2510,17 +2637,13 @@ class _AIConfigPageState extends State<AIConfigPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Provider 选择
-              DropdownButtonFormField<String>(
-                initialValue: provider,
-                decoration: const InputDecoration(labelText: "Provider", isDense: true),
-                items: _providerPresets.entries.map((e) =>
-                  DropdownMenuItem(value: e.key, child: Text("${e.value["name"]} (${e.key})"))
-                ).toList(),
+              _OverlayDropdown(
+                value: provider,
+                hint: "选择 Provider",
+                items: _providerPresets.entries.map((e) => _OverlayDropdownItem(value: e.key, label: "${e.value["name"]} (${e.key})")).toList(),
                 onChanged: (v) {
-                  if (v == null) return;
                   final newKey = "$v:default";
                   final newProfile = {"provider": v, "type": mode, "key": apiKey};
-                  // 移除旧的，添加新的
                   authProfiles.remove(profileKey);
                   authProfiles[newKey] = newProfile;
                   cfg.saveAuthProfiles();
@@ -2529,16 +2652,16 @@ class _AIConfigPageState extends State<AIConfigPage> {
               ),
               const SizedBox(height: 16),
               // 认证模式
-              DropdownButtonFormField<String>(
-                initialValue: mode,
-                decoration: const InputDecoration(labelText: "认证模式", isDense: true),
+              _OverlayDropdown(
+                value: mode,
+                hint: "选择认证模式",
                 items: const [
-                  DropdownMenuItem(value: "api_key", child: Text("API Key (直接配置)")),
-                  DropdownMenuItem(value: "env", child: Text("环境变量 (ENV)")),
-                  DropdownMenuItem(value: "ref", child: Text("Secrets Ref (高级)")),
+                  _OverlayDropdownItem(value: "api_key", label: "API Key (直接配置)"),
+                  _OverlayDropdownItem(value: "env", label: "环境变量 (ENV)"),
+                  _OverlayDropdownItem(value: "ref", label: "Secrets Ref (高级)"),
                 ],
                 onChanged: (v) {
-                  profile["type"] = v ?? "api_key";
+                  profile["type"] = v;
                   authProfiles[profileKey] = profile;
                   cfg.saveAuthProfiles();
                   setState(() {});
@@ -2587,13 +2710,11 @@ class _AIConfigPageState extends State<AIConfigPage> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            DropdownButtonFormField<String>(
-              initialValue: selectedProvider,
-              decoration: const InputDecoration(labelText: "Provider", isDense: true),
-              items: _providerPresets.entries.map((e) =>
-                DropdownMenuItem(value: e.key, child: Text("${e.value["name"]} (${e.key})"))
-              ).toList(),
-              onChanged: (v) => setDialogState(() => selectedProvider = v ?? "openrouter"),
+            _OverlayDropdown(
+              value: selectedProvider,
+              hint: "选择 Provider",
+              items: _providerPresets.entries.map((e) => _OverlayDropdownItem(value: e.key, label: "${e.value["name"]} (${e.key})")).toList(),
+              onChanged: (v) => setDialogState(() => selectedProvider = v),
             ),
             const SizedBox(height: 12),
             TextField(controller: keyCtrl, decoration: const InputDecoration(labelText: "Profile ID (如: default, production)", isDense: true)),
@@ -3788,27 +3909,14 @@ class _EnumDropdown extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    const accentColor = Color(0xFF3B82F6);
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text(label, style: TextStyle(fontSize: 13, color: isDark ? Colors.grey.shade400 : Colors.grey.shade700)),
       const SizedBox(height: 8),
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1A1A1A) : Colors.grey.shade50,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: isDark ? const Color(0xFF333333) : Colors.grey.shade300),
-        ),
-        child: DropdownButtonHideUnderline(
-          child: DropdownButton<String>(
-            value: options.contains(value) ? value : options.first,
-            isExpanded: true,
-            dropdownColor: isDark ? const Color(0xFF1A1A1A) : Colors.white,
-            style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-            items: options.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-            onChanged: onChanged,
-          ),
-        ),
+      _OverlayDropdown(
+        value: options.contains(value) ? value! : options.first,
+        hint: "选择...",
+        items: options.map((e) => _OverlayDropdownItem(value: e, label: e)).toList(),
+        onChanged: (v) => onChanged(v),
       ),
     ]);
   }
@@ -3841,6 +3949,88 @@ class _SwitchTile extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _UnifiedDropdown extends StatelessWidget {
+  final String label;
+  final String? value;
+  final List<String> options;
+  final ValueChanged<String?> onChanged;
+  final Map<String, String>? descriptions;
+
+  const _UnifiedDropdown({
+    required this.label,
+    required this.value,
+    required this.options,
+    required this.onChanged,
+    this.descriptions,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    const accentColor = Color(0xFF3B82F6);
+    final currentValue = value ?? options.first;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: TextStyle(fontSize: 13, color: isDark ? Colors.grey.shade400 : Colors.grey.shade700)),
+        const SizedBox(height: 8),
+        PopupMenuButton<String>(
+          initialValue: currentValue,
+          onSelected: onChanged,
+          offset: const Offset(0, 40),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          color: isDark ? const Color(0xFF1F1F1F) : Colors.white,
+          itemBuilder: (ctx) => options.map((opt) {
+            return PopupMenuItem<String>(
+              value: opt,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(opt, style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: opt == currentValue ? FontWeight.w600 : FontWeight.normal)),
+                        if (descriptions?[opt]?.isNotEmpty == true)
+                          Text(descriptions![opt]!, style: TextStyle(fontSize: 11, color: Colors.grey)),
+                      ],
+                    ),
+                  ),
+                  if (opt == currentValue)
+                    Icon(Icons.check, size: 16, color: accentColor),
+                ],
+              ),
+            );
+          }).toList(),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1F1F1F) : Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: isDark ? accentColor.withAlpha(60) : Colors.grey.shade300),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(currentValue, style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 13)),
+                      if (descriptions?[currentValue]?.isNotEmpty == true)
+                        Text(descriptions![currentValue]!, style: TextStyle(fontSize: 11, color: Colors.grey)),
+                    ],
+                  ),
+                ),
+                Icon(Icons.arrow_drop_down, color: Colors.grey),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
