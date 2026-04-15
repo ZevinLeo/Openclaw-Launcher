@@ -11,6 +11,8 @@ analyzer:
   errors:
     unused_element: ignore
     curly_braces_in_flow_control_structures: ignore
+    unused_element_parameter: ignore
+    use_null_aware_elements: ignore
 include: package:flutter_lints/flutter.yaml
 
 linter:
