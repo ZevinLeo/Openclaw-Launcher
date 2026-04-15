@@ -28,6 +28,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => FileProvider()),
         ChangeNotifierProvider(create: (_) => NavigationProvider()),
         ChangeNotifierProvider(create: (_) => SkillsProvider()),
+        ChangeNotifierProvider(create: (_) => CoreFilesProvider()),
       ],
       child: const OpenClawApp(),
     ),
@@ -170,6 +171,68 @@ class OpenClawApp extends StatelessWidget {
 // ==========================================
 // 2. 核心 Provider (逻辑保持完整)
 // ==========================================
+
+class CoreFilesProvider extends ChangeNotifier {
+  final List<Map<String, String>> coreFiles = [
+    {"name": "AGENTS.md", "description": "Agent 定义与配置"},
+    {"name": "SOUL.md", "description": "人设与性格设定"},
+    {"name": "USER.md", "description": "用户画像与偏好"},
+    {"name": "IDENTITY.md", "description": "身份边界定义"},
+    {"name": "TOOLS.md", "description": "工具能力清单"},
+    {"name": "MEMORY.md", "description": "记忆存储策略"},
+    {"name": "HEARTBEAT.md", "description": "心跳检测配置"},
+    {"name": "BOOT.md", "description": "启动引导脚本"},
+    {"name": "BOOTSTRAP.md", "description": "初始化流程"},
+  ];
+
+  String _selectedFile = "";
+  String get selectedFile => _selectedFile;
+  String _workspacePath = "";
+  String get workspacePath => _workspacePath;
+
+  void setWorkspacePath(String path) {
+    _workspacePath = path;
+    notifyListeners();
+  }
+
+  void selectFile(String fileName) {
+    _selectedFile = fileName;
+    notifyListeners();
+  }
+
+  String getRealPath() {
+    if (_workspacePath.isEmpty) return "";
+    String realPath = _workspacePath.startsWith('~')
+        ? _workspacePath.replaceFirst('~', Platform.environment[Platform.isWindows ? 'UserProfile' : 'HOME']!)
+        : _workspacePath;
+    return realPath;
+  }
+
+  Future<void> openInEditor() async {
+    if (_selectedFile.isEmpty || _workspacePath.isEmpty) return;
+    final realPath = getRealPath();
+    final filePath = p.join(realPath, _selectedFile);
+    if (!File(filePath).existsSync()) return;
+
+    if (Platform.isWindows) {
+      await Process.start('notepad', [filePath], runInShell: true);
+    } else {
+      await Process.start('open', [filePath], runInShell: true);
+    }
+  }
+
+  Future<void> openDirectory() async {
+    if (_workspacePath.isEmpty) return;
+    final realPath = getRealPath();
+    if (!Directory(realPath).existsSync()) return;
+
+    if (Platform.isWindows) {
+      await Process.start('explorer', [realPath], runInShell: true);
+    } else {
+      await Process.start('open', [realPath], runInShell: true);
+    }
+  }
+}
 
 class LogEntry {
   final String message;
@@ -1336,11 +1399,11 @@ class _DashboardPageState extends State<DashboardPage> {
               ),
               const SizedBox(height: 16),
 
-              // ===== 2. 左模块(核心监控) + 右模块(版本管理) =====
+              // ===== 2. 三列布局: 核心监控 + 核心文件 + 版本管理 =====
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  // 左模块 - 核心监控
+                  // 第1列 - 核心监控
                   Expanded(
                     flex: 3,
                     child: Container(
@@ -1394,16 +1457,22 @@ class _DashboardPageState extends State<DashboardPage> {
                     ),
                   ),
                   const SizedBox(width: 16),
-                  // 右模块 - 版本管理
-Expanded(
+                  // 第2列 - 核心文件
+                  Expanded(
+                    flex: 2,
+                    child: _CoreFilesColumn(),
+                  ),
+                  const SizedBox(width: 16),
+                  // 第3列 - 版本管理
+                  Expanded(
                     flex: 2,
                     child: Container(
                       height: 200,
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF0F9FF),
+                        color: isDark ? cardColor : const Color(0xFFF0F9FF),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: accentColor.withAlpha(50)),
+                        border: Border.all(color: isDark ? borderColor : accentColor.withAlpha(50)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1413,7 +1482,7 @@ Expanded(
                             children: [
                               const Icon(Icons.smart_toy, size: 18, color: accentColor),
                               const SizedBox(width: 8),
-                              Text("OpenClaw", style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87)),
+                              Text("版本管理", style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87)),
                               const Spacer(),
                               IconButton(
                                 icon: const Icon(Icons.refresh, size: 18),
@@ -1429,10 +1498,10 @@ Expanded(
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                 decoration: BoxDecoration(
-                                  color: Colors.white,
+                                  color: isDark ? const Color(0xFF1F1F1F) : Colors.white,
                                   borderRadius: BorderRadius.circular(6),
                                 ),
-                                child: Text("V${launcher.versionNumber}", style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF374151))),
+                                child: Text("V${launcher.versionNumber}", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: isDark ? Colors.white : const Color(0xFF374151))),
                               ),
                               if (hasUpdate) ...[
                                 const SizedBox(width: 6),
@@ -1473,9 +1542,9 @@ Expanded(
           child: Container(
             margin: const EdgeInsets.fromLTRB(24, 0, 24, 16),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF0A0A0A) : const Color(0xFF1E1E1E),
+              color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF6F8FA),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: isDark ? const Color(0xFF333333) : Colors.grey.shade400),
+              border: Border.all(color: isDark ? const Color(0xFF30363D) : Colors.grey.shade300),
             ),
             child: Column(
               children: [
@@ -1483,20 +1552,20 @@ Expanded(
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF161616) : const Color(0xFF2D2D2D),
+                    color: isDark ? const Color(0xFF161B22) : const Color(0xFFE1E4E8),
                     borderRadius: const BorderRadius.only(topLeft: Radius.circular(12), topRight: Radius.circular(12)),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.terminal, size: 14, color: Colors.grey),
+                      Icon(Icons.terminal, size: 14, color: isDark ? Colors.grey.shade400 : Colors.grey.shade700),
                       const SizedBox(width: 8),
-                      const Text("实时日志", style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
+                      Text("实时日志", style: TextStyle(color: isDark ? Colors.grey.shade400 : Colors.grey.shade700, fontSize: 12, fontWeight: FontWeight.bold)),
                       const Spacer(),
                       SizedBox(
                         height: 24,
                         child: TextButton.icon(
                           onPressed: () => launcher.clearLogs(),
-                          icon: const Icon(Icons.delete_sweep, size: 13),
+                          icon: Icon(Icons.delete_sweep, size: 13, color: Colors.grey),
                           label: const Text("清空", style: TextStyle(fontSize: 11)),
                           style: TextButton.styleFrom(foregroundColor: Colors.grey, padding: const EdgeInsets.symmetric(horizontal: 8)),
                         ),
@@ -1507,7 +1576,7 @@ Expanded(
                           Clipboard.setData(ClipboardData(text: allLogs));
                           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("日志已复制"), duration: Duration(seconds: 1)));
                         },
-                        child: const Padding(padding: EdgeInsets.all(4), child: Icon(Icons.copy_all, size: 14, color: Colors.grey)),
+                        child: Padding(padding: const EdgeInsets.all(4), child: Icon(Icons.copy_all, size: 14, color: Colors.grey)),
                       ),
                     ],
                   ),
@@ -1521,12 +1590,12 @@ Expanded(
                       itemCount: launcher.logs.length,
                       itemBuilder: (ctx, i) {
                         final log = launcher.logs[i];
-                        Color c = const Color(0xFFCCCCCC);
-                        if (log.type == "ERROR") c = const Color(0xFFFF6B6B);
-                        if (log.type == "WARN") c = const Color(0xFFFFD43B);
-                        if (log.type == "SUCCESS") c = const Color(0xFF69DB7C);
-                        if (log.type == "CMD") c = const Color(0xFF74C0FC);
-                        if (log.type == "DEBUG") c = const Color(0xFF868E96);
+                        Color c = isDark ? const Color(0xFF8B949E) : const Color(0xFF24292F);
+                        if (log.type == "ERROR") c = const Color(0xFFF85149);
+                        if (log.type == "WARN") c = const Color(0xFFD29922);
+                        if (log.type == "SUCCESS") c = const Color(0xFF3FB950);
+                        if (log.type == "CMD") c = const Color(0xFF58A6FF);
+                        if (log.type == "DEBUG") c = isDark ? const Color(0xFF8B949E) : const Color(0xFF57606A);
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 1),
                           child: Text("[${log.time}] ${log.message}", style: TextStyle(color: c, fontFamily: "Consolas", fontSize: 12, height: 1.5)),
@@ -1539,13 +1608,13 @@ Expanded(
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF161616) : const Color(0xFF2D2D2D),
+                    color: isDark ? const Color(0xFF161B22) : const Color(0xFFE1E4E8),
                     borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(12), bottomRight: Radius.circular(12)),
-                    border: Border(top: BorderSide(color: isDark ? const Color(0xFF333333) : Colors.grey.shade600)),
+                    border: Border(top: BorderSide(color: isDark ? const Color(0xFF30363D) : Colors.grey.shade300)),
                   ),
                   child: Row(
                     children: [
-                      const Text("\$ ", style: TextStyle(color: Color(0xFF69DB7C), fontFamily: "Consolas", fontSize: 13, fontWeight: FontWeight.bold)),
+                      Text("\$ ", style: TextStyle(color: isDark ? const Color(0xFF3FB950) : const Color(0xFF1A7F37), fontFamily: "Consolas", fontSize: 13, fontWeight: FontWeight.bold)),
                       Expanded(
                         child: KeyboardListener(
                           focusNode: FocusNode(),
@@ -1558,13 +1627,13 @@ Expanded(
                           child: TextField(
                             controller: _cmdController,
                             focusNode: _cmdFocus,
-                            style: const TextStyle(color: Colors.white, fontFamily: "Consolas", fontSize: 13),
-                            decoration: const InputDecoration(
+                            style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontFamily: "Consolas", fontSize: 13),
+                            decoration: InputDecoration(
                               hintText: "输入命令...",
-                              hintStyle: TextStyle(color: Color(0xFF555555), fontFamily: "Consolas", fontSize: 13),
+                              hintStyle: TextStyle(color: isDark ? Colors.grey.shade600 : Colors.grey.shade500, fontFamily: "Consolas", fontSize: 13),
                               border: InputBorder.none,
                               isDense: true,
-                              contentPadding: EdgeInsets.symmetric(vertical: 4),
+                              contentPadding: const EdgeInsets.symmetric(vertical: 4),
                               fillColor: Colors.transparent,
                               filled: true,
                             ),
@@ -1574,7 +1643,7 @@ Expanded(
                       ),
                       InkWell(
                         onTap: () { _submitCommand(launcher); _cmdFocus.requestFocus(); },
-                        child: const Padding(padding: EdgeInsets.all(4), child: Icon(Icons.send, size: 16, color: Color(0xFF69DB7C))),
+                        child: Padding(padding: const EdgeInsets.all(4), child: Icon(Icons.send, size: 16, color: isDark ? const Color(0xFF3FB950) : const Color(0xFF1A7F37))),
                       ),
                     ],
                   ),
@@ -1701,6 +1770,110 @@ class _MonitorItem extends StatelessWidget {
             children: [
               Text(label, style: TextStyle(fontSize: 13, color: Colors.grey)),
               Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// 核心文件列组件
+class _CoreFilesColumn extends StatefulWidget {
+  const _CoreFilesColumn();
+
+  @override
+  State<_CoreFilesColumn> createState() => _CoreFilesColumnState();
+}
+
+class _CoreFilesColumnState extends State<_CoreFilesColumn> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final cfg = context.read<ConfigProvider>();
+      final ws = cfg.config.get("agents.defaults.workspace") ?? "~/.openclaw/workspace";
+      context.read<CoreFilesProvider>().setWorkspacePath(ws);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final coreFiles = context.watch<CoreFilesProvider>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    const accentColor = Color(0xFF3B82F6);
+    const borderColor = Color(0xFF3F3F46);
+    final cardColor = isDark ? const Color(0xFF27272A) : Colors.white;
+
+    return Container(
+      height: 200,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: isDark ? borderColor : Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.folder_copy, size: 18, color: accentColor),
+              const SizedBox(width: 8),
+              Text("核心文件", style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1F1F1F) : Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: isDark ? accentColor.withAlpha(60) : Colors.grey.shade300),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: coreFiles.selectedFile.isEmpty ? null : coreFiles.selectedFile,
+                  hint: Text("选择文件...", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  isExpanded: true,
+                  dropdownColor: isDark ? const Color(0xFF1F1F1F) : Colors.white,
+                  style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 12),
+                  items: coreFiles.coreFiles.map((f) {
+                    return DropdownMenuItem(
+                      value: f["name"],
+                      child: Text(f["name"] ?? "", style: const TextStyle(fontSize: 12)),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    if (value != null) {
+                      coreFiles.selectFile(value);
+                    }
+                  },
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: _ActionButton(
+                  icon: Icons.edit,
+                  label: "编辑",
+                  color: accentColor,
+                  onTap: coreFiles.selectedFile.isEmpty ? null : () => coreFiles.openInEditor(),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _ActionButton(
+                  icon: Icons.folder_open,
+                  label: "打开目录",
+                  color: Colors.orange,
+                  onTap: coreFiles.workspacePath.isEmpty ? null : () => coreFiles.openDirectory(),
+                ),
+              ),
             ],
           ),
         ],
