@@ -1,4 +1,4 @@
-// ignore_for_file: duplicate_ignore, deprecated_member_use, unused_field, use_null_aware_elements, unused_element_parameter, unused_local_variable, unnecessary_import, avoid_print
+// ignore_for_file: prefer_final_fields, duplicate_ignore, deprecated_member_use, unused_field, use_null_aware_elements, unused_element_parameter, unused_local_variable, unnecessary_import, avoid_print
 
 import 'dart:async';
 import 'dart:convert';
@@ -1185,6 +1185,7 @@ class _DashboardPageState extends State<DashboardPage> {
   int _cmdHistoryIdx = -1;
   Timer? _uptimeTimer;
   Timer? _tokenTimer;
+  String _selectedCoreFile = "AGENTS.md";
 
   @override
   void initState() {
@@ -1245,8 +1246,58 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
+  void _openWorkspaceFolder() async {
+    final cfg = context.read<ConfigProvider>();
+    final workspace = cfg.config.get("agents.defaults.workspace") ?? "~/.openclaw/workspace";
+    final expandedPath = workspace.replaceAll("~", Platform.isWindows ? Platform.environment["USERPROFILE"] ?? "" : Platform.environment["HOME"] ?? "");
+    final dir = Directory(expandedPath);
+    if (await dir.exists()) {
+      if (Platform.isWindows) {
+        await Process.start('explorer.exe', [expandedPath], mode: ProcessStartMode.normal);
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("工作区目录不存在: $expandedPath")));
+      }
+    }
+  }
+
+   void _openConfigFile() async {
+     final cfg = context.read<ConfigProvider>();
+     final workspace = cfg.config.get("agents.defaults.workspace") ?? "~/.openclaw/workspace";
+     final expandedPath = workspace.replaceAll("~", Platform.isWindows ? Platform.environment["USERPROFILE"] ?? "" : Platform.environment["HOME"] ?? "");
+     final configPath = p.join(expandedPath, "openclaw.json");
+     final configFile = File(configPath);
+     if (await configFile.exists()) {
+       if (Platform.isWindows) {
+         await Process.start('notepad.exe', [configPath], mode: ProcessStartMode.normal);
+       }
+     } else {
+       if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("配置文件不存在: $configPath")));
+       }
+     }
+   }
+
+   void _openFile(String fileName) async {
+     final cfg = context.read<ConfigProvider>();
+     final workspace = cfg.config.get("agents.defaults.workspace") ?? "~/.openclaw/workspace";
+     final expandedPath = workspace.replaceAll("~", Platform.isWindows ? Platform.environment["USERPROFILE"] ?? "" : Platform.environment["HOME"] ?? "");
+     final filePath = p.join(expandedPath, fileName);
+     final file = File(filePath);
+     if (await file.exists()) {
+       if (Platform.isWindows) {
+         await Process.start('notepad.exe', [filePath], mode: ProcessStartMode.normal);
+       }
+     } else {
+       if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("文件不存在: $fileName\n工作区: $expandedPath")));
+       }
+     }
+   }
+
+   @override
+   Widget build(BuildContext context) {
     final launcher = context.watch<LauncherProvider>();
     final isRunning = launcher.isGatewayRunning;
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -1334,149 +1385,19 @@ class _DashboardPageState extends State<DashboardPage> {
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
-
-              // ===== 2. 左模块(核心监控) + 右模块(版本管理) =====
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  // 左模块 - 核心监控
-                  Expanded(
-                    flex: 3,
-                    child: Container(
-                      height: 200,
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: isDark ? cardColor : Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: isDark ? borderColor : Colors.grey.shade200),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              const Icon(Icons.monitor_heart, size: 18, color: accentColor),
-                              const SizedBox(width: 8),
-                              Text("核心监控", style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87)),
-                              const Spacer(),
-                              Container(
-                                width: 8, height: 8,
-                                decoration: BoxDecoration(
-                                  color: isRunning ? Colors.green : Colors.red,
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(isRunning ? "运行中" : "已停止", style: TextStyle(fontSize: 12, color: isRunning ? Colors.green : Colors.red, fontWeight: FontWeight.w500)),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          // 监控指标
-                          Row(
-                            children: [
-                              Expanded(child: _MonitorItem(icon: Icons.bolt, label: "端口", value: launcher.currentPort)),
-                              const SizedBox(width: 16),
-                              Expanded(child: _MonitorItem(icon: Icons.memory, label: "进程ID", value: launcher.currentPid)),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Expanded(child: _MonitorItem(icon: Icons.timer_outlined, label: "运行时间", value: launcher.uptime)),
-                              const SizedBox(width: 16),
-                              Expanded(child: _MonitorItem(icon: Icons.token, label: "已用Tokens", value: launcher.tokenUsageDisplay)),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  // 右模块 - 版本管理
-Expanded(
-                    flex: 2,
-                    child: Container(
-                      height: 200,
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF0F9FF),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: accentColor.withAlpha(50)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              const Icon(Icons.smart_toy, size: 18, color: accentColor),
-                              const SizedBox(width: 8),
-                              Text("OpenClaw", style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87)),
-                              const Spacer(),
-                              IconButton(
-                                icon: const Icon(Icons.refresh, size: 18),
-                                color: Colors.grey,
-                                tooltip: "检测更新",
-                                onPressed: () => launcher.checkForUpdates(),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text("V${launcher.versionNumber}", style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF374151))),
-                              ),
-                              if (hasUpdate) ...[
-                                const SizedBox(width: 6),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFFEE2E2),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: const Text("NEW", style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF374151))),
-                                ),
-                              ],
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          SizedBox(
-                            width: double.infinity,
-                            child: _ActionButton(
-                              icon: Icons.system_update,
-                              label: hasUpdate ? "更新到 V${launcher.remoteVersion}" : "已是最新版本",
-                              color: hasUpdate ? accentColor : Colors.grey,
-                              onTap: hasUpdate ? () => launcher.updateCore() : null,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-
-        // ===== 3. 实时日志 (最下面) =====
-        Expanded(
-          child: Container(
-            margin: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF0A0A0A) : const Color(0xFF1E1E1E),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: isDark ? const Color(0xFF333333) : Colors.grey.shade400),
             ),
+          ),
+          const SizedBox(height: 16),
+
+          // ===== 3. 实时日志 (最下面) =====
+          Expanded(
+            child: Container(
+              margin: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF0A0A0A) : const Color(0xFF1E1E1E),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: isDark ? const Color(0xFF333333) : Colors.grey.shade400),
+              ),
             child: Column(
               children: [
                 // 终端标题栏
@@ -1667,6 +1588,48 @@ class _ActionButton extends StatelessWidget {
                 Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w500)),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// 核心文件按钮组件
+class _FileButton extends StatelessWidget {
+  final String label;
+  final String desc;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _FileButton({
+    required this.label,
+    required this.desc,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: color.withAlpha(15),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: color.withAlpha(40)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(label, style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w600)),
+              Text(desc, style: TextStyle(color: Colors.grey, fontSize: 10)),
+            ],
           ),
         ),
       ),
@@ -3317,6 +3280,8 @@ class SoulTab extends StatefulWidget {
 }
 
 class _SoulTabState extends State<SoulTab> {
+  final TextEditingController _textController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -3324,6 +3289,27 @@ class _SoulTabState extends State<SoulTab> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<FileProvider>().scanWorkspace("~/.openclaw/workspace");
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final fileProvider = context.watch<FileProvider>();
+    if (_textController.text != fileProvider.fileContent) {
+      // 保存光标位置
+      final selection = _textController.selection;
+      _textController.text = fileProvider.fileContent ?? "";
+      // 恢复光标位置，防止越界
+      if (selection.isValid && selection.end <= _textController.text.length) {
+        _textController.selection = selection;
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _textController.dispose();
+    super.dispose();
   }
 
   @override
@@ -3398,23 +3384,22 @@ class _SoulTabState extends State<SoulTab> {
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: isDark ? const Color(0xFF333333) : Colors.grey.shade300),
                         ),
-                        child: TextField(
-                          controller: TextEditingController(text: fileProvider.fileContent)
-                            ..selection = TextSelection.collapsed(offset: 0), // 防止重置时光标跳动
-                          maxLines: null,
-                          expands: true,
-                          style: const TextStyle(fontFamily: "Consolas", fontSize: 13, height: 1.4),
-                          decoration: const InputDecoration(
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                          onChanged: (v) {
-                             // 简单的防抖保存逻辑可以加在这里，暂时只更新 Provider 状态
-                             // fileProvider.updateCache(v); 
-                             // 实际保存由 HeaderBar 的 Save 按钮触发
-                             fileProvider.fileContent = v;
-                          },
-                        ),
+                         child: TextField(
+                           controller: _textController,
+                           maxLines: null,
+                           expands: true,
+                           style: const TextStyle(fontFamily: "Consolas", fontSize: 13, height: 1.4),
+                           decoration: const InputDecoration(
+                             border: InputBorder.none,
+                             contentPadding: EdgeInsets.zero,
+                           ),
+                           onChanged: (v) {
+                              // 简单的防抖保存逻辑可以加在这里，暂时只更新 Provider 状态
+                              // fileProvider.updateCache(v); 
+                              // 实际保存由 HeaderBar 的 Save 按钮触发
+                              fileProvider.fileContent = v;
+                           },
+                         ),
                       ),
               ),
             ],
