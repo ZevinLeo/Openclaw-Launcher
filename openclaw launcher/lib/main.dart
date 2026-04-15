@@ -1031,12 +1031,20 @@ class SkillsProvider extends ChangeNotifier {
 
 class MainLayout extends StatelessWidget {
   const MainLayout({super.key});
+  static const MethodChannel _windowChannel = MethodChannel("openclaw/window");
 
   @override
   Widget build(BuildContext context) {
     final nav = context.watch<NavigationProvider>();
+    final themeProvider = context.watch<ThemeProvider>();
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final platformBrightness = MediaQuery.platformBrightnessOf(context);
+    final useDarkWindowBar = switch (themeProvider.themeMode) {
+      ThemeMode.light => false,
+      ThemeMode.dark => true,
+      ThemeMode.system => platformBrightness == Brightness.dark,
+    };
     
     const accentColor = Color(0xFF3B82F6);
     const surfaceColor = Color(0xFF18181B);
@@ -1054,95 +1062,192 @@ class MainLayout extends StatelessWidget {
       const SettingsPage(),
     ];
 
-return Scaffold(
-      body: Stack(
+    return Scaffold(
+      body: Column(
         children: [
-          Row(
-            children: [
-              // 一级侧边栏 - OpenList 风格
-              Container(
-                width: 220,
-                decoration: BoxDecoration(
-                  color: isDark ? surfaceColor : Colors.white,
-                  border: Border(
-                    right: BorderSide(color: isDark ? borderColor : Colors.grey.shade200),
-                  ),
-                ),
-                child: Column(
+          Expanded(
+            child: Stack(
+              children: [
+                Row(
                   children: [
-                    // Logo Area
+                    // 一级侧边栏 - OpenList 风格
                     Container(
-                      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-                      child: Row(
+                      width: 220,
+                      decoration: BoxDecoration(
+                        color: isDark ? surfaceColor : Colors.white,
+                        border: Border(
+                          right: BorderSide(color: isDark ? borderColor : Colors.grey.shade200),
+                        ),
+                      ),
+                      child: Column(
                         children: [
+                          // Logo Area
                           Container(
-                            width: 32, height: 32,
-                            decoration: BoxDecoration(
-                              color: accentColor,
-                              borderRadius: BorderRadius.circular(8),
+                            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 32, height: 32,
+                                  decoration: BoxDecoration(
+                                    color: accentColor,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(Icons.smart_toy, color: Colors.white, size: 18),
+                                ),
+                                const SizedBox(width: 10),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text("OpenClaw", style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                      color: isDark ? Colors.white : Colors.black87,
+                                    )),
+                                    Text("Manager", style: const TextStyle(
+                                      fontSize: 10,
+                                      color: textSecondary,
+                                    )),
+                                  ],
+                                )
+                              ],
                             ),
-                            child: const Icon(Icons.smart_toy, color: Colors.white, size: 18),
                           ),
-                          const SizedBox(width: 10),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text("OpenClaw", style: TextStyle(
-                                fontSize: 15, 
-                                fontWeight: FontWeight.w600,
-                                color: isDark ? Colors.white : Colors.black87,
-                              )),
-                              Text("Manager", style: TextStyle(
-                                fontSize: 10, 
-                                color: textSecondary,
-                              )),
-                            ],
-                          )
+
+                          const Divider(height: 1),
+
+                          // Navigation Items
+                          Expanded(
+                            child: ListView(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              children: [
+                                _NavItem(icon: Icons.dashboard_rounded, label: "仪表盘", index: 0, isSelected: nav.selectedIndex == 0),
+                                _NavItem(icon: Icons.smart_toy_outlined, label: "AI 配置", index: 1, isSelected: nav.selectedIndex == 1),
+                                _NavItem(icon: Icons.chat_bubble_outline_rounded, label: "消息渠道", index: 2, isSelected: nav.selectedIndex == 2),
+                                _NavItem(icon: Icons.extension_outlined, label: "技能管理", index: 3, isSelected: nav.selectedIndex == 3),
+                                _NavItem(icon: Icons.description_outlined, label: "应用日志", index: 4, isSelected: nav.selectedIndex == 4),
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                  child: Divider(height: 1),
+                                ),
+                                _NavItem(icon: Icons.settings_outlined, label: "设置", index: 5, isSelected: nav.selectedIndex == 5),
+                              ],
+                            ),
+                          ),
+
+                          // Bottom Status
+                          _BottomStatusWidget(),
                         ],
                       ),
                     ),
-                    
-                    const Divider(height: 1),
-                    
-                    // Navigation Items
+
+                    // 右侧内容区
                     Expanded(
-                      child: ListView(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        children: [
-                          _NavItem(icon: Icons.dashboard_rounded, label: "仪表盘", index: 0, isSelected: nav.selectedIndex == 0),
-                          _NavItem(icon: Icons.smart_toy_outlined, label: "AI 配置", index: 1, isSelected: nav.selectedIndex == 1),
-                          _NavItem(icon: Icons.chat_bubble_outline_rounded, label: "消息渠道", index: 2, isSelected: nav.selectedIndex == 2),
-                          _NavItem(icon: Icons.extension_outlined, label: "技能管理", index: 3, isSelected: nav.selectedIndex == 3),
-                          _NavItem(icon: Icons.description_outlined, label: "应用日志", index: 4, isSelected: nav.selectedIndex == 4),
-                          const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            child: Divider(height: 1),
-                          ),
-                          _NavItem(icon: Icons.settings_outlined, label: "设置", index: 5, isSelected: nav.selectedIndex == 5),
-                        ],
+                      child: Container(
+                        color: isDark ? surfaceColor : const Color(0xFFF4F4F5),
+                        child: pages[nav.selectedIndex],
                       ),
                     ),
-                    
-                    // Bottom Status
-                    _BottomStatusWidget(),
                   ],
                 ),
-              ),
-              
-              // 右侧内容区
-              Expanded(
-                child: Container(
-                  color: isDark ? surfaceColor : const Color(0xFFF4F4F5),
-                  child: pages[nav.selectedIndex],
+                // Toast 提示
+                Positioned(
+                  top: 16,
+                  right: 16,
+                  child: _ToastWidget(),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-          // Toast 提示
-          Positioned(
-            top: 16,
-            right: 16,
-            child: _ToastWidget(),
+        ],
+      ),
+    );
+  }
+}
+
+class _NativeTitleBarSync extends StatefulWidget {
+  final bool useDarkStyle;
+  final MethodChannel channel;
+  const _NativeTitleBarSync({
+    required this.useDarkStyle,
+    required this.channel,
+  });
+
+  @override
+  State<_NativeTitleBarSync> createState() => _NativeTitleBarSyncState();
+}
+
+class _NativeTitleBarSyncState extends State<_NativeTitleBarSync> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _sync());
+  }
+
+  @override
+  void didUpdateWidget(covariant _NativeTitleBarSync oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.useDarkStyle != widget.useDarkStyle) {
+      _sync();
+    }
+  }
+
+  Future<void> _sync() async {
+    if (!Platform.isWindows) return;
+    try {
+      await widget.channel.invokeMethod("setNativeTitleBarTheme", {
+        "dark": widget.useDarkStyle,
+      });
+    } catch (_) {
+      // Ignore failures on unsupported Windows versions.
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
+}
+
+class _ImmersiveWindowBar extends StatelessWidget {
+  final bool useDarkStyle;
+  const _ImmersiveWindowBar({required this.useDarkStyle});
+
+  @override
+  Widget build(BuildContext context) {
+    final topPadding = MediaQuery.paddingOf(context).top;
+    final textColor = useDarkStyle ? const Color(0xFFE4E4E7) : const Color(0xFF1F2937);
+    final borderColor = useDarkStyle ? const Color(0xFF27272A) : const Color(0xFFE5E7EB);
+    final gradient = useDarkStyle
+        ? const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF111827), Color(0xFF18181B)],
+          )
+        : const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFFDFDFD), Color(0xFFF3F4F6)],
+          );
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      height: 40 + topPadding,
+      padding: EdgeInsets.only(top: topPadding, left: 14, right: 14),
+      decoration: BoxDecoration(
+        gradient: gradient,
+        border: Border(bottom: BorderSide(color: borderColor)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.auto_awesome, size: 14, color: textColor.withAlpha(220)),
+          const SizedBox(width: 8),
+          Text(
+            "OpenClaw Manager",
+            style: TextStyle(
+              color: textColor,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.2,
+            ),
           ),
         ],
       ),

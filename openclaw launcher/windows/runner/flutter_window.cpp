@@ -1,8 +1,18 @@
 #include "flutter_window.h"
 
+#include <dwmapi.h>
+#include <flutter/standard_method_codec.h>
 #include <optional>
 
 #include "flutter/generated_plugin_registrant.h"
+
+#pragma comment(lib, "dwmapi.lib")
+
+namespace {
+constexpr int kDwmUseImmersiveDarkMode = 20;
+constexpr int kDwmCaptionColor = 35;
+constexpr int kDwmTextColor = 36;
+}  // namespace
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
@@ -27,6 +37,37 @@ bool FlutterWindow::OnCreate() {
   RegisterPlugins(flutter_controller_->engine());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
+  window_channel_ =
+      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+          flutter_controller_->engine()->messenger(), "openclaw/window",
+          &flutter::StandardMethodCodec::GetInstance());
+  window_channel_->SetMethodCallHandler(
+      [this](const flutter::MethodCall<flutter::EncodableValue>& call,
+             std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>
+                 result) {
+        if (call.method_name() == "setNativeTitleBarTheme") {
+          const auto* args = std::get_if<flutter::EncodableMap>(call.arguments());
+          if (args == nullptr) {
+            result->Error("bad_args", "Arguments should be a map.");
+            return;
+          }
+          const auto it = args->find(flutter::EncodableValue("dark"));
+          if (it == args->end()) {
+            result->Error("bad_args", "Missing 'dark' parameter.");
+            return;
+          }
+          const auto* dark = std::get_if<bool>(&it->second);
+          if (dark == nullptr) {
+            result->Error("bad_args", "'dark' should be a bool.");
+            return;
+          }
+          SetNativeTitleBarTheme(*dark);
+          result->Success();
+          return;
+        }
+        result->NotImplemented();
+      });
+
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
     this->Show();
   });
@@ -39,7 +80,27 @@ bool FlutterWindow::OnCreate() {
   return true;
 }
 
+void FlutterWindow::SetNativeTitleBarTheme(bool use_dark) {
+  const HWND hwnd = GetHandle();
+  if (!hwnd) {
+    return;
+  }
+
+  const BOOL dark_mode = use_dark ? TRUE : FALSE;
+  DwmSetWindowAttribute(hwnd, kDwmUseImmersiveDarkMode, &dark_mode,
+                        sizeof(dark_mode));
+
+  // Match the app's immersive bar palette.
+  const COLORREF caption_color =
+      use_dark ? RGB(24, 24, 27) : RGB(243, 244, 246);
+  const COLORREF text_color = use_dark ? RGB(244, 244, 245) : RGB(31, 41, 55);
+  DwmSetWindowAttribute(hwnd, kDwmCaptionColor, &caption_color,
+                        sizeof(caption_color));
+  DwmSetWindowAttribute(hwnd, kDwmTextColor, &text_color, sizeof(text_color));
+}
+
 void FlutterWindow::OnDestroy() {
+  window_channel_.reset();
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }
