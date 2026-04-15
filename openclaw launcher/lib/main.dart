@@ -1829,6 +1829,8 @@ class _OverlayDropdownState extends State<_OverlayDropdown> {
   }
 
 void _showOverlay() {
+    if (_overlayEntry != null && _overlayEntry!.mounted) return;
+    
     final isDark = Theme.of(context).brightness == Brightness.dark;
     const accentColor = Color(0xFF3B82F6);
 
