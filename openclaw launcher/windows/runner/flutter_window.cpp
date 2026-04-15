@@ -12,6 +12,8 @@ namespace {
 constexpr int kDwmUseImmersiveDarkMode = 20;
 constexpr int kDwmCaptionColor = 35;
 constexpr int kDwmTextColor = 36;
+constexpr int kMinWindowWidth = 1280;
+constexpr int kMinWindowHeight = 720;
 }  // namespace
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
@@ -123,6 +125,20 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   }
 
   switch (message) {
+    case WM_GETMINMAXINFO: {
+      auto* minmax_info = reinterpret_cast<MINMAXINFO*>(lparam);
+      const UINT dpi = GetDpiForWindow(hwnd);
+      const int scaled_min_width =
+          MulDiv(kMinWindowWidth, dpi == 0 ? USER_DEFAULT_SCREEN_DPI : dpi,
+                 USER_DEFAULT_SCREEN_DPI);
+      const int scaled_min_height =
+          MulDiv(kMinWindowHeight, dpi == 0 ? USER_DEFAULT_SCREEN_DPI : dpi,
+                 USER_DEFAULT_SCREEN_DPI);
+
+      minmax_info->ptMinTrackSize.x = scaled_min_width;
+      minmax_info->ptMinTrackSize.y = scaled_min_height;
+      return 0;
+    }
     case WM_FONTCHANGE:
       flutter_controller_->engine()->ReloadSystemFonts();
       break;
