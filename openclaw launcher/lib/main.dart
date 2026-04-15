@@ -1,4 +1,4 @@
-// ignore_for_file: unused_field, use_null_aware_elements, unused_element_parameter, unused_local_variable, unnecessary_import, avoid_print
+// ignore_for_file: duplicate_ignore, deprecated_member_use, unused_field, use_null_aware_elements, unused_element_parameter, unused_local_variable, unnecessary_import, avoid_print
 
 import 'dart:async';
 import 'dart:convert';
@@ -3507,6 +3507,7 @@ class _ConfigTextField extends StatefulWidget {
   final String value;
   final ValueChanged<String> onChanged;
   final bool isSecret;
+
   const _ConfigTextField({required this.label, required this.value, required this.onChanged, this.isSecret = false});
   @override
   State<_ConfigTextField> createState() => _ConfigTextFieldState();
@@ -3519,17 +3520,26 @@ class _ConfigTextFieldState extends State<_ConfigTextField> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    const accentColor = Color(0xFF3B82F6);
     return Padding(padding: const EdgeInsets.only(bottom: 16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text(widget.label, style: TextStyle(fontSize: 13, color: isDark ? Colors.grey.shade400 : Colors.grey.shade700)),
       const SizedBox(height: 8),
-      TextField(
-        controller: _ctrl,
-        obscureText: _obscure,
-        onChanged: widget.onChanged,
-        style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-        decoration: InputDecoration(
-          suffixIcon: widget.isSecret ? IconButton(icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off, size: 18), onPressed: ()=>setState(()=>_obscure=!_obscure)) : null,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1A1A1A) : Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: isDark ? const Color(0xFF333333) : Colors.grey.shade300),
+        ),
+        child: TextField(
+          controller: _ctrl,
+          obscureText: _obscure,
+          onChanged: widget.onChanged,
+          style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+          decoration: InputDecoration(
+            suffixIcon: widget.isSecret ? IconButton(icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off, size: 18, color: Colors.grey), onPressed: ()=>setState(()=>_obscure=!_obscure)) : null,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            border: InputBorder.none,
+          ),
         ),
       ),
     ]));
@@ -3549,11 +3559,50 @@ class _StringListEditorState extends State<_StringListEditor> {
   void _add() { if (_ctrl.text.isNotEmpty) { widget.onChanged(List<String>.from(widget.items.map((e)=>e.toString()))..add(_ctrl.text)); _ctrl.clear(); } }
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    const accentColor = Color(0xFF3B82F6);
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(widget.label, style: const TextStyle(fontSize: 13, color: Colors.grey)),
+      Text(widget.label, style: TextStyle(fontSize: 13, color: isDark ? Colors.grey.shade400 : Colors.grey.shade700)),
       const SizedBox(height: 8),
-      Row(children: [Expanded(child: TextField(controller: _ctrl, decoration: const InputDecoration(hintText: "添加..."))), IconButton(onPressed: _add, icon: const Icon(Icons.add))]),
-      Wrap(spacing: 8, children: widget.items.map((e) => Chip(label: Text(e.toString()), onDeleted: () => widget.onChanged(List<String>.from(widget.items.map((x)=>x.toString()))..remove(e)))).toList())
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1A1A1A) : Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: isDark ? const Color(0xFF333333) : Colors.grey.shade300),
+        ),
+        child: Row(children: [
+          Expanded(child: TextField(
+            controller: _ctrl,
+            style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+            decoration: InputDecoration(
+              hintText: "添加...",
+              hintStyle: TextStyle(color: Colors.grey.shade500),
+              border: InputBorder.none,
+              isDense: true,
+              contentPadding: EdgeInsets.zero,
+            ),
+          )),
+          IconButton(onPressed: _add, icon: Icon(Icons.add, size: 20, color: accentColor))
+        ]),
+      ),
+      const SizedBox(height: 12),
+      Wrap(spacing: 8, runSpacing: 8, children: widget.items.map((e) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: accentColor.withAlpha(25),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: accentColor.withAlpha(50)),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Text(e.toString(), style: TextStyle(color: accentColor, fontSize: 13)),
+          const SizedBox(width: 4),
+          GestureDetector(
+            onTap: () => widget.onChanged(List<String>.from(widget.items.map((x)=>x.toString()))..remove(e)),
+            child: Icon(Icons.close, size: 16, color: accentColor),
+          ),
+        ]),
+      )).toList())
     ]);
   }
 }
@@ -3565,10 +3614,29 @@ class _EnumDropdown extends StatelessWidget {
   const _EnumDropdown({required this.label, required this.value, required this.options, required this.onChanged});
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    const accentColor = Color(0xFF3B82F6);
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label, style: const TextStyle(fontSize: 13, color: Colors.grey)),
+      Text(label, style: TextStyle(fontSize: 13, color: isDark ? Colors.grey.shade400 : Colors.grey.shade700)),
       const SizedBox(height: 8),
-      DropdownButtonFormField<String>(initialValue: options.contains(value) ? value : options.first, items: options.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(), onChanged: onChanged)
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1A1A1A) : Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: isDark ? const Color(0xFF333333) : Colors.grey.shade300),
+        ),
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<String>(
+            value: options.contains(value) ? value : options.first,
+            isExpanded: true,
+            dropdownColor: isDark ? const Color(0xFF1A1A1A) : Colors.white,
+            style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+            items: options.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+            onChanged: onChanged,
+          ),
+        ),
+      ),
     ]);
   }
 }
@@ -3579,7 +3647,29 @@ class _SwitchTile extends StatelessWidget {
   final ValueChanged<bool> onChanged;
   const _SwitchTile({required this.title, required this.value, required this.onChanged});
   @override
-  Widget build(BuildContext context) => SwitchListTile(title: Text(title), value: value, onChanged: onChanged, contentPadding: EdgeInsets.zero);
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    const accentColor = Color(0xFF3B82F6);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1A1A1A) : Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: isDark ? const Color(0xFF333333) : Colors.grey.shade300),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(title, style: TextStyle(fontSize: 14, color: isDark ? Colors.white : Colors.black87)),
+          Switch(
+            value: value,
+            onChanged: onChanged,
+            activeColor: accentColor,
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _BigInstallButton extends StatelessWidget {
