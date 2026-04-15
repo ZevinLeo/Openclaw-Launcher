@@ -1463,7 +1463,7 @@ class _DashboardPageState extends State<DashboardPage> {
                     child: _CoreFilesColumn(),
                   ),
                   const SizedBox(width: 16),
-                  // 第3列 - 版本管理
+// 第3列 - 版本管理
                   Expanded(
                     flex: 2,
                     child: Container(
@@ -1975,7 +1975,7 @@ class _CoreFilesColumnState extends State<_CoreFilesColumn> {
             ],
           ),
           const SizedBox(height: 6),
-          SizedBox(height: 36, child: _OverlayDropdown(
+          SizedBox(height: 40, child: _OverlayDropdown(
             value: coreFiles.selectedFile,
             hint: "选择文件...",
             items: coreFiles.coreFiles.map((f) => _OverlayDropdownItem(value: f["name"]!, label: f["name"]!, subtitle: f["description"] ?? "")).toList(),
