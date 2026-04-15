@@ -1314,8 +1314,8 @@ class _DashboardPageState extends State<DashboardPage> {
                   Expanded(
                     flex: 3,
                     child: Container(
-                      height: 165,
-                      padding: const EdgeInsets.all(12),
+                      height: 200,
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: isDark ? cardColor : Colors.white,
                         borderRadius: BorderRadius.circular(12),
@@ -1342,20 +1342,20 @@ class _DashboardPageState extends State<DashboardPage> {
                               Text(isRunning ? "运行中" : "已停止", style: TextStyle(fontSize: 12, color: isRunning ? Colors.green : Colors.red, fontWeight: FontWeight.w500)),
                             ],
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 12),
                           // 监控指标
                           Row(
                             children: [
                               Expanded(child: _MonitorItem(icon: Icons.bolt, label: "端口", value: launcher.currentPort)),
-                              const SizedBox(width: 4),
+                              const SizedBox(width: 16),
                               Expanded(child: _MonitorItem(icon: Icons.memory, label: "进程ID", value: launcher.currentPid)),
                             ],
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 16),
                           Row(
                             children: [
                               Expanded(child: _MonitorItem(icon: Icons.timer_outlined, label: "运行时间", value: launcher.uptime)),
-                              const SizedBox(width: 4),
+                              const SizedBox(width: 16),
                               Expanded(child: _MonitorItem(icon: Icons.token, label: "已用Tokens", value: launcher.tokenUsageDisplay)),
                             ],
                           ),
@@ -1368,8 +1368,8 @@ class _DashboardPageState extends State<DashboardPage> {
 Expanded(
                     flex: 2,
                     child: Container(
-                      height: 165,
-                      padding: const EdgeInsets.all(12),
+                      height: 200,
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: const Color(0xFFF0F9FF),
                         borderRadius: BorderRadius.circular(12),
@@ -1614,22 +1614,22 @@ class _MonitorItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      height: 50,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      height: 56,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1F1F1F) : Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         children: [
-          Icon(icon, size: 14, color: Colors.grey),
-          const SizedBox(width: 4),
+          Icon(icon, size: 16, color: Colors.grey),
+          const SizedBox(width: 6),
           Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: TextStyle(fontSize: 9, color: Colors.grey)),
-              Text(value, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87)),
+              Text(label, style: TextStyle(fontSize: 13, color: Colors.grey)),
+              Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87)),
             ],
           ),
         ],
