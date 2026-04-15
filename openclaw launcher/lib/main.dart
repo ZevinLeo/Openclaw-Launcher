@@ -1065,6 +1065,10 @@ class MainLayout extends StatelessWidget {
     return Scaffold(
       body: Column(
         children: [
+          _NativeTitleBarSync(
+            useDarkStyle: useDarkWindowBar,
+            channel: _windowChannel,
+          ),
           Expanded(
             child: Stack(
               children: [
@@ -1095,25 +1099,24 @@ class MainLayout extends StatelessWidget {
                                   child: const Icon(Icons.smart_toy, color: Colors.white, size: 18),
                                 ),
                                 const SizedBox(width: 10),
-                                Column(
+Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text("OpenClaw", style: TextStyle(
-                                      fontSize: 15,
+                                      fontSize: 14, 
                                       fontWeight: FontWeight.w600,
                                       color: isDark ? Colors.white : Colors.black87,
                                     )),
-                                    Text("Manager", style: const TextStyle(
-                                      fontSize: 10,
-                                      color: textSecondary,
+                                    Text("Manager", style: TextStyle( 
+                                      fontSize: 14, 
+                                      fontWeight: FontWeight.w600,
+                                      color: isDark ? Colors.white : Colors.black87,
                                     )),
                                   ],
                                 )
                               ],
                             ),
                           ),
-
-                          const Divider(height: 1),
 
                           // Navigation Items
                           Expanded(
@@ -1125,10 +1128,6 @@ class MainLayout extends StatelessWidget {
                                 _NavItem(icon: Icons.chat_bubble_outline_rounded, label: "消息渠道", index: 2, isSelected: nav.selectedIndex == 2),
                                 _NavItem(icon: Icons.extension_outlined, label: "技能管理", index: 3, isSelected: nav.selectedIndex == 3),
                                 _NavItem(icon: Icons.description_outlined, label: "应用日志", index: 4, isSelected: nav.selectedIndex == 4),
-                                const Padding(
-                                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                  child: Divider(height: 1),
-                                ),
                                 _NavItem(icon: Icons.settings_outlined, label: "设置", index: 5, isSelected: nav.selectedIndex == 5),
                               ],
                             ),
@@ -1177,6 +1176,8 @@ class _NativeTitleBarSync extends StatefulWidget {
 }
 
 class _NativeTitleBarSyncState extends State<_NativeTitleBarSync> {
+  bool _isSyncing = false;
+
   @override
   void initState() {
     super.initState();
@@ -1186,13 +1187,14 @@ class _NativeTitleBarSyncState extends State<_NativeTitleBarSync> {
   @override
   void didUpdateWidget(covariant _NativeTitleBarSync oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.useDarkStyle != widget.useDarkStyle) {
+    if (oldWidget.useDarkStyle != widget.useDarkStyle && !_isSyncing) {
       _sync();
     }
   }
 
-  Future<void> _sync() async {
-    if (!Platform.isWindows) return;
+  void _sync() async {
+    if (!Platform.isWindows || _isSyncing) return;
+    _isSyncing = true;
     try {
       await widget.channel.invokeMethod("setNativeTitleBarTheme", {
         "dark": widget.useDarkStyle,
@@ -1200,6 +1202,7 @@ class _NativeTitleBarSyncState extends State<_NativeTitleBarSync> {
     } catch (_) {
       // Ignore failures on unsupported Windows versions.
     }
+    _isSyncing = false;
   }
 
   @override
@@ -2367,49 +2370,7 @@ class _CommandInputState extends State<_CommandInput> {
     final launcher = context.watch<LauncherProvider>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161616) : const Color(0xFF2D2D2D),
-        borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(12), bottomRight: Radius.circular(12)),
-        border: Border(top: BorderSide(color: isDark ? const Color(0xFF333333) : Colors.grey.shade600)),
-      ),
-      child: Row(
-        children: [
-          const Text("\$ ", style: TextStyle(color: Color(0xFF69DB7C), fontFamily: "Consolas", fontSize: 13, fontWeight: FontWeight.bold)),
-          Expanded(
-            child: KeyboardListener(
-              focusNode: FocusNode(),
-              onKeyEvent: (event) {
-                if (event is KeyDownEvent) {
-                  if (event.logicalKey == LogicalKeyboardKey.arrowUp) _navigateHistory(true);
-                  else if (event.logicalKey == LogicalKeyboardKey.arrowDown) _navigateHistory(false);
-                }
-              },
-              child: TextField(
-                controller: _cmdController,
-                focusNode: _cmdFocus,
-                style: const TextStyle(color: Colors.white, fontFamily: "Consolas", fontSize: 13),
-                decoration: const InputDecoration(
-                  hintText: "输入命令...",
-                  hintStyle: TextStyle(color: Color(0xFF555555), fontFamily: "Consolas", fontSize: 13),
-                  border: InputBorder.none,
-                  isDense: true,
-                  contentPadding: EdgeInsets.symmetric(vertical: 4),
-                  fillColor: Colors.transparent,
-                  filled: true,
-                ),
-                onSubmitted: (_) { _submitCommand(launcher); _cmdFocus.requestFocus(); },
-              ),
-            ),
-          ),
-          InkWell(
-            onTap: () { _submitCommand(launcher); _cmdFocus.requestFocus(); },
-            child: const Padding(padding: EdgeInsets.all(4), child: Icon(Icons.send, size: 16, color: Color(0xFF69DB7C))),
-          ),
-        ],
-      ),
-    );
+    return const SizedBox.shrink();
   }
 }
 class _TokenStatusItem extends StatelessWidget {
