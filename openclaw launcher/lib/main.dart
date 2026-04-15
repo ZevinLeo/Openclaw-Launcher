@@ -1824,10 +1824,11 @@ class _OverlayDropdownState extends State<_OverlayDropdown> {
       setState(() => _isOpen = false);
     } else {
       _showOverlay();
+      setState(() => _isOpen = true);
     }
   }
 
-  void _showOverlay() {
+void _showOverlay() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     const accentColor = Color(0xFF3B82F6);
 
@@ -1898,30 +1899,43 @@ class _OverlayDropdownState extends State<_OverlayDropdown> {
     setState(() => _isOpen = true);
   }
 
-  @override
+@override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     const accentColor = Color(0xFF3B82F6);
-    final selectedItem = widget.items.where((e) => e.value == widget.value).firstOrNull;
 
-return CompositedTransformTarget(
+    String getDisplayText() {
+      if (widget.value.isEmpty) return widget.hint;
+      for (var item in widget.items) {
+        if (item.value == widget.value) return item.label;
+      }
+      return widget.hint;
+    }
+
+    final displayText = getDisplayText();
+    final displayColor = widget.value.isEmpty ? Colors.grey : (isDark ? Colors.white : Colors.black87);
+
+    return CompositedTransformTarget(
       link: _layerLink,
       child: InkWell(
         onTap: _toggleDropdown,
         borderRadius: BorderRadius.circular(6),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          height: 40,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
             color: isDark ? const Color(0xFF1F1F1F) : Colors.grey.shade50,
             borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: _isOpen ? accentColor : (isDark ? accentColor.withAlpha(60) : Colors.grey.shade300), width: _isOpen ? 2 : 1),
+            border: Border.all(color: isDark ? const Color(0xFF3B82F6).withAlpha(60) : Colors.grey.shade300),
           ),
           child: Row(
             children: [
               Expanded(
-                child: Text(selectedItem?.label ?? widget.hint, style: TextStyle(color: selectedItem != null ? (isDark ? Colors.white : Colors.black87) : Colors.grey, fontSize: 14)),
+                child: widget.value.isEmpty
+                    ? Text(widget.hint, style: TextStyle(color: Colors.grey, fontSize: 14))
+                    : Text(displayText, style: TextStyle(color: displayColor, fontSize: 14), overflow: TextOverflow.ellipsis, maxLines: 1),
               ),
-              AnimatedRotation(turns: _isOpen ? 0.5 : 0, duration: const Duration(milliseconds: 200), child: Icon(Icons.keyboard_arrow_down, size: 20, color: _isOpen ? accentColor : Colors.grey)),
+              Icon(_isOpen ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down, size: 20, color: accentColor),
             ],
           ),
         ),
