@@ -3589,23 +3589,104 @@ class _FeishuConfigView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cfg = context.watch<ConfigProvider>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final fs = cfg.config.get("channels.feishu") as Map? ?? {};
+    final enabled = fs["enabled"] as bool? ?? false;
     final acc = (fs["accounts"] as Map? ?? {})["main"] as Map? ?? {};
     return ListView(children: [
-      _SectionCard(
-          title: "飞书凭证",
-          child: Column(children: [
-            _ConfigTextField(
-                label: "App ID",
-                value: acc["appId"] ?? "",
-                onChanged: (v) => cfg.updateField("channels.feishu.accounts.main.appId", v)),
-            _ConfigTextField(
-                label: "App Secret",
-                value: acc["appSecret"] ?? "",
-                isSecret: true,
-                onChanged: (v) =>
-                    cfg.updateField("channels.feishu.accounts.main.appSecret", v)),
-          ])),
+      _SectionCard(title: "飞书凭证", child: Column(children: [
+        _SwitchTile(
+          title: "启用飞书渠道",
+          value: enabled,
+          onChanged: (v) => cfg.updateField("channels.feishu.enabled", v),
+        ),
+        const SizedBox(height: 16),
+        _ConfigTextField(
+          label: "App ID",
+          value: acc["appId"] as String? ?? "",
+          onChanged: (v) => cfg.updateField("channels.feishu.accounts.main.appId", v),
+        ),
+        const SizedBox(height: 12),
+        _ConfigTextField(
+          label: "App Secret",
+          value: acc["appSecret"] as String? ?? "",
+          isSecret: true,
+          onChanged: (v) => cfg.updateField("channels.feishu.accounts.main.appSecret", v),
+        ),
+      ])),
+      const SizedBox(height: 24),
+      _SectionCard(title: "连接设置", child: Column(children: [
+        _EnumDropdown(
+          label: "连接模式",
+          value: fs["connectionMode"] as String? ?? "websocket",
+          options: const ["websocket", "webhook"],
+          onChanged: (v) => cfg.updateField("channels.feishu.connectionMode", v),
+        ),
+        const SizedBox(height: 16),
+        _ConfigTextField(
+          label: "Verification Token (Webhook模式)",
+          value: fs["verificationToken"] as String? ?? "",
+          isSecret: true,
+          onChanged: (v) => cfg.updateField("channels.feishu.verificationToken", v),
+        ),
+        const SizedBox(height: 12),
+        _ConfigTextField(
+          label: "Encrypt Key (Webhook模式)",
+          value: fs["encryptKey"] as String? ?? "",
+          isSecret: true,
+          onChanged: (v) => cfg.updateField("channels.feishu.encryptKey", v),
+        ),
+      ])),
+      const SizedBox(height: 24),
+      _SectionCard(title: "私聊策略 (DM)", child: Column(children: [
+        _EnumDropdown(
+          label: "DM 策略",
+          value: fs["dmPolicy"] as String? ?? "allowlist",
+          options: const ["pairing", "allowlist", "open", "disabled"],
+          onChanged: (v) => cfg.updateField("channels.feishu.dmPolicy", v),
+        ),
+      ])),
+      const SizedBox(height: 24),
+      _SectionCard(title: "群组策略", child: Column(children: [
+        _EnumDropdown(
+          label: "群组策略",
+          value: fs["groupPolicy"] as String? ?? "allowlist",
+          options: const ["open", "allowlist", "disabled"],
+          onChanged: (v) => cfg.updateField("channels.feishu.groupPolicy", v),
+        ),
+        const SizedBox(height: 16),
+        _SwitchTile(
+          title: "需要 @提及",
+          value: fs["requireMention"] as bool? ?? true,
+          onChanged: (v) => cfg.updateField("channels.feishu.requireMention", v),
+        ),
+      ])),
+      const SizedBox(height: 24),
+      _SectionCard(title: "消息设置", child: Column(children: [
+        _SwitchTile(
+          title: "流式卡片输出",
+          value: fs["streaming"] as bool? ?? true,
+          onChanged: (v) => cfg.updateField("channels.feishu.streaming", v),
+        ),
+        const SizedBox(height: 12),
+        _SwitchTile(
+          title: "块级流式输出",
+          value: fs["blockStreaming"] as bool? ?? true,
+          onChanged: (v) => cfg.updateField("channels.feishu.blockStreaming", v),
+        ),
+        const SizedBox(height: 12),
+        _SwitchTile(
+          title: "显示打字指示",
+          value: fs["typingIndicator"] as bool? ?? true,
+          onChanged: (v) => cfg.updateField("channels.feishu.typingIndicator", v),
+        ),
+        const SizedBox(height: 12),
+        _SwitchTile(
+          title: "解析发送者名称",
+          value: fs["resolveSenderNames"] as bool? ?? true,
+          onChanged: (v) => cfg.updateField("channels.feishu.resolveSenderNames", v),
+        ),
+      ])),
     ]);
   }
 }
