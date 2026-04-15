@@ -2166,7 +2166,14 @@ class _AIConfigPageState extends State<AIConfigPage> {
               cfg.updateField("agents.defaults.model.primary", modelId);
               setState(() {});
             },
-            onEdit: () => _showEditModelDialog(cfg, modelId, modelData, modelsMap),
+            onSave: (alias, maxTokens, temp) {
+              modelData["alias"] = alias;
+              if (maxTokens != null) modelData["maxTokens"] = maxTokens;
+              if (temp != null) modelData["temperature"] = temp;
+              modelsMap[modelId] = modelData;
+              cfg.updateField("agents.defaults.models", modelsMap);
+              setState(() {});
+            },
             onRemove: () {
               modelsMap.remove(modelId);
               cfg.updateField("agents.defaults.models", modelsMap);
@@ -2373,15 +2380,15 @@ class _AIConfigPageState extends State<AIConfigPage> {
   }
 }
 
-// 模型卡片组件
-class _ModelCard extends StatelessWidget {
+// 模型卡片组件（可展开内联编辑）
+class _ModelCard extends StatefulWidget {
   final String modelId;
   final String alias;
   final int? maxTokens;
   final double? temperature;
   final bool isPrimary;
   final VoidCallback onSetPrimary;
-  final VoidCallback onEdit;
+  final Function(String alias, int? maxTokens, double? temperature) onSave;
   final VoidCallback onRemove;
 
   const _ModelCard({
@@ -2391,70 +2398,175 @@ class _ModelCard extends StatelessWidget {
     this.temperature,
     required this.isPrimary,
     required this.onSetPrimary,
-    required this.onEdit,
+    required this.onSave,
     required this.onRemove,
   });
+
+  @override
+  State<_ModelCard> createState() => _ModelCardState();
+}
+
+class _ModelCardState extends State<_ModelCard> {
+  bool _isExpanded = false;
+  late TextEditingController _aliasCtrl;
+  late TextEditingController _maxTokensCtrl;
+  late TextEditingController _tempCtrl;
+  bool _isEditing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initControllers();
+  }
+
+  void _initControllers() {
+    _aliasCtrl = TextEditingController(text: widget.alias);
+    _maxTokensCtrl = TextEditingController(text: widget.maxTokens?.toString() ?? "");
+    _tempCtrl = TextEditingController(text: widget.temperature?.toString() ?? "");
+  }
+
+  @override
+  void didUpdateWidget(covariant _ModelCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.modelId != widget.modelId) {
+      _initControllers();
+    }
+  }
+
+  @override
+  void dispose() {
+    _aliasCtrl.dispose();
+    _maxTokensCtrl.dispose();
+    _tempCtrl.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final alias = _aliasCtrl.text.trim();
+    final maxTokens = int.tryParse(_maxTokensCtrl.text.trim());
+    final temp = double.tryParse(_tempCtrl.text.trim());
+    widget.onSave(alias.isEmpty ? widget.modelId : alias, maxTokens, temp);
+    setState(() => _isEditing = false);
+  }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF252525) : Colors.grey.shade50,
         borderRadius: BorderRadius.circular(12),
-        border: isPrimary ? Border.all(color: Colors.blue, width: 1.5) : null,
+        border: widget.isPrimary ? Border.all(color: Colors.blue, width: 1.5) : null,
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              // 别名
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+          InkWell(
+            onTap: () => setState(() => _isExpanded = !_isExpanded),
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Flexible(child: Text(alias.isNotEmpty ? alias : modelId, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), overflow: TextOverflow.ellipsis)),
-                        if (isPrimary) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(color: Colors.blue, borderRadius: BorderRadius.circular(4)),
-                            child: const Text("主模型", style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-                          ),
-                        ],
+                        Row(
+                          children: [
+                            Flexible(child: Text(widget.alias.isNotEmpty ? widget.alias : widget.modelId, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), overflow: TextOverflow.ellipsis)),
+                            if (widget.isPrimary) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(color: Colors.blue, borderRadius: BorderRadius.circular(4)),
+                                child: const Text("主模型", style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                              ),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(widget.modelId, style: const TextStyle(fontSize: 12, color: Colors.grey, fontFamily: "Consolas")),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(modelId, style: const TextStyle(fontSize: 12, color: Colors.grey, fontFamily: "Consolas")),
-                  ],
-                ),
+                  ),
+                  IconButton(
+                    icon: Icon(_isExpanded ? Icons.expand_less : Icons.expand_more, size: 20),
+                    onPressed: () => setState(() => _isExpanded = !_isExpanded),
+                  ),
+                ],
               ),
-              // 操作按钮
-              IconButton(
-                icon: Icon(isPrimary ? Icons.star : Icons.star_border, size: 18, color: isPrimary ? Colors.amber : null),
-                tooltip: isPrimary ? "当前主模型" : "设为主模型",
-                onPressed: isPrimary ? null : onSetPrimary,
-              ),
-              IconButton(icon: const Icon(Icons.edit, size: 18), tooltip: "编辑", onPressed: onEdit),
-              IconButton(icon: const Icon(Icons.delete, size: 18, color: Colors.red), tooltip: "删除", onPressed: onRemove),
-            ],
+            ),
           ),
-          if (maxTokens != null || temperature != null) ...[
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              children: [
-                if (maxTokens != null)
-                  Chip(label: Text("Tokens: $maxTokens", style: const TextStyle(fontSize: 11)), materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.compact),
-                if (temperature != null)
-                  Chip(label: Text("Temp: $temperature", style: const TextStyle(fontSize: 11)), materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.compact),
-              ],
+          if (_isExpanded) ...[
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Column(
+                children: [
+                  const Divider(),
+                  if (_isEditing) ...[
+                    // 内联编辑表单
+                    TextField(
+                      controller: _aliasCtrl,
+                      decoration: const InputDecoration(labelText: "别名", isDense: true),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _maxTokensCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: "最大 Tokens", isDense: true),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _tempCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(labelText: "温度 (0-2)", isDense: true),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => setState(() => _isEditing = false),
+                          child: const Text("取消"),
+                        ),
+                        const SizedBox(width: 8),
+                        FilledButton(
+                          onPressed: _save,
+                          child: const Text("保存"),
+                        ),
+                      ],
+                    ),
+                  ] else ...[
+                    // 显示参数和操作
+                    if (widget.maxTokens != null || widget.temperature != null) ...[
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        children: [
+                          if (widget.maxTokens != null)
+                            Chip(label: Text("Tokens: ${widget.maxTokens}", style: const TextStyle(fontSize: 11)), materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.compact),
+                          if (widget.temperature != null)
+                            Chip(label: Text("Temp: ${widget.temperature}", style: const TextStyle(fontSize: 11)), materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.compact),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        IconButton(
+                          icon: Icon(widget.isPrimary ? Icons.star : Icons.star_border, size: 18, color: widget.isPrimary ? Colors.amber : null),
+                          tooltip: widget.isPrimary ? "当前主模型" : "设为主模型",
+                          onPressed: widget.isPrimary ? null : widget.onSetPrimary,
+                        ),
+                        IconButton(icon: const Icon(Icons.edit, size: 18), tooltip: "编辑", onPressed: () => setState(() => _isEditing = true)),
+                        IconButton(icon: const Icon(Icons.delete, size: 18, color: Colors.red), tooltip: "删除", onPressed: widget.onRemove),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
             ),
           ],
         ],
