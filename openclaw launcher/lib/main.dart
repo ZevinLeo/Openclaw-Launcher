@@ -1823,7 +1823,9 @@ class _OverlayDropdownState extends State<_OverlayDropdown> {
       _removeOverlay();
       setState(() => _isOpen = false);
     } else {
-      _showOverlay();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showOverlay();
+      });
       setState(() => _isOpen = true);
     }
   }
