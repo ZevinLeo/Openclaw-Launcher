@@ -1420,16 +1420,11 @@ Expanded(
                           const SizedBox(height: 12),
                           SizedBox(
                             width: double.infinity,
-                            child: ElevatedButton.icon(
-                              onPressed: hasUpdate ? () => launcher.updateCore() : null,
-                              icon: const Icon(Icons.system_update, size: 16),
-                              label: Text(hasUpdate ? "更新到 V${launcher.remoteVersion}" : "已是最新版本"),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: accentColor,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 10),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                              ),
+                            child: _ActionButton(
+                              icon: Icons.system_update,
+                              label: hasUpdate ? "更新到 V${launcher.remoteVersion}" : "已是最新版本",
+                              color: hasUpdate ? accentColor : Colors.grey,
+                              onTap: hasUpdate ? () => launcher.updateCore() : null,
                             ),
                           ),
                         ],
@@ -3437,16 +3432,11 @@ class _SaveButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const accentColor = Color(0xFF3B82F6);
-    return FilledButton.icon(
-      onPressed: () => context.read<ConfigProvider>().saveConfig(),
-      icon: const Icon(Icons.save, size: 16),
-      label: const Text("保存"),
-      style: FilledButton.styleFrom(
-        backgroundColor: accentColor,
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
+    return _ActionButton(
+      icon: Icons.save,
+      label: "保存",
+      color: accentColor,
+      onTap: () => context.read<ConfigProvider>().saveConfig(),
     );
   }
 }
