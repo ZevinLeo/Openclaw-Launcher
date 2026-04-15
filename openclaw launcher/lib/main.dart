@@ -1,4 +1,4 @@
-// ignore_for_file: use_null_aware_elements, unused_element_parameter, unused_local_variable, unnecessary_import, avoid_print
+// ignore_for_file: unused_field, use_null_aware_elements, unused_element_parameter, unused_local_variable, unnecessary_import, avoid_print
 
 import 'dart:async';
 import 'dart:convert';
@@ -1603,6 +1603,52 @@ class _CoreActionBtn extends StatelessWidget {
   }
 }
 
+// 统一操作按钮组件
+class _ActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback? onTap;
+
+  const _ActionButton({
+    required this.icon,
+    required this.label,
+    required this.color,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Opacity(
+      opacity: onTap == null ? 0.5 : 1.0,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: color.withAlpha(25),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: color.withAlpha(50)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 16, color: color),
+                const SizedBox(width: 4),
+                Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w500)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // 监控指标项
 class _MonitorItem extends StatelessWidget {
   final IconData icon;
@@ -2401,6 +2447,7 @@ class _ModelCard extends StatefulWidget {
 
 class _ModelCardState extends State<_ModelCard> {
   bool _isExpanded = false;
+  bool _isEditing = false;
 
   @override
   Widget build(BuildContext context) {
@@ -2473,17 +2520,30 @@ class _ModelCardState extends State<_ModelCard> {
                     ),
                     const SizedBox(height: 12),
                   ],
-                  // 操作按钮
+                  // 操作按钮（统一风格）
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      IconButton(
-                        icon: Icon(widget.isPrimary ? Icons.star : Icons.star_border, size: 18, color: widget.isPrimary ? Colors.amber : null),
-                        tooltip: widget.isPrimary ? "当前主模型" : "设为主模型",
-                        onPressed: widget.isPrimary ? null : widget.onSetPrimary,
+                      _ActionButton(
+                        icon: widget.isPrimary ? Icons.star : Icons.star_border,
+                        label: widget.isPrimary ? "主模型" : "设为主模型",
+                        color: widget.isPrimary ? Colors.amber : Colors.grey,
+                        onTap: widget.isPrimary ? null : widget.onSetPrimary,
                       ),
-                      IconButton(icon: const Icon(Icons.edit, size: 18), tooltip: "编辑", onPressed: widget.onEdit),
-                      IconButton(icon: const Icon(Icons.delete, size: 18, color: Colors.red), tooltip: "删除", onPressed: widget.onRemove),
+                      const SizedBox(width: 8),
+                      _ActionButton(
+                        icon: Icons.edit,
+                        label: "编辑",
+                        color: Colors.blue,
+                        onTap: () => setState(() => _isEditing = true),
+                      ),
+                      const SizedBox(width: 8),
+                      _ActionButton(
+                        icon: Icons.delete,
+                        label: "删除",
+                        color: Colors.red,
+                        onTap: widget.onRemove,
+                      ),
                     ],
                   ),
                 ],
