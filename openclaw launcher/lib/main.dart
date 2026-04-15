@@ -1416,19 +1416,39 @@ class _DashboardPageState extends State<DashboardPage> {
                       SizedBox(
                         height: 24,
                         child: TextButton.icon(
-                          onPressed: () => launcher.clearLogs(),
+                          onPressed: launcher.clearLogs,
                           icon: const Icon(Icons.delete_sweep, size: 13),
-                          label: const Text("清空", style: TextStyle(fontSize: 11)),
-                          style: TextButton.styleFrom(foregroundColor: Colors.grey, padding: const EdgeInsets.symmetric(horizontal: 8)),
+                          label: const Text(
+                            "清空",
+                            style: TextStyle(fontSize: 11),
+                          ),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.grey,
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                          ),
                         ),
                       ),
                       InkWell(
                         onTap: () {
-                          final allLogs = launcher.logs.map((l) => "[${l.time}] ${l.message}").join("\n");
+                          final allLogs = launcher.logs
+                              .map((l) => "[${l.time}] ${l.message}")
+                              .join("\n");
                           Clipboard.setData(ClipboardData(text: allLogs));
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("日志已复制"), duration: Duration(seconds: 1)));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text("日志已复制"),
+                              duration: Duration(seconds: 1),
+                            ),
+                          );
                         },
-                        child: const Padding(padding: EdgeInsets.all(4), child: Icon(Icons.copy_all, size: 14, color: Colors.grey)),
+                        child: const Padding(
+                          padding: EdgeInsets.all(4),
+                          child: Icon(
+                            Icons.copy_all,
+                            size: 14,
+                            color: Colors.grey,
+                          ),
+                        ),
                       ),
                     ],
                   ),
